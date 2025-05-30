@@ -19,7 +19,14 @@ export class XmlProcessingService {
   }
 
   parse(xml: string): any {
-    return this.parser.parse(xml);
+    try {
+      return this.parser.parse(xml);
+    } catch (e) {
+      // Attach a custom error for malformed XML
+      const err = new Error('Malformed XML');
+      (err as any).original = e;
+      throw err;
+    }
   }
 
   build(obj: any): string {
@@ -54,7 +61,10 @@ export class XmlProcessingService {
    * @param whitespaceOptions Whitespace normalization options
    * @returns XML string with whitespace, node, and attribute normalization
    */
-  parseNormalizeWhitespaceSortAndNormalizeAttributes(xml: string, whitespaceOptions?: WhitespaceOptions): string {
+  parseNormalizeWhitespaceSortAndNormalizeAttributes(
+    xml: string,
+    whitespaceOptions?: WhitespaceOptions,
+  ): string {
     const parsed = this.parse(xml);
     const options = whitespaceOptions || WhitespaceUtils.getOptions();
     const whitespaceNormalized = WhitespaceUtils.normalizeWhitespace(parsed, options);
