@@ -1,0 +1,86 @@
+{
+  "name": "smart-xml-diff",
+  "displayName": "Smart XML Diff",
+  "description": "XML diff tool",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:xml",
+    "onSelection"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smartXmlDiff.compareWithClipboard",
+        "title": "Smart XML Diff: Compare with Clipboard"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "smartXmlDiff.compareWithClipboard",
+          "when": "editorLangId == xml",
+          "group": "navigation@100"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Smart XML Diff",
+      "properties": {
+        "smartXmlDiff.ignoreWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignore insignificant whitespace between XML elements and normalize whitespace in text nodes before diffing."
+        },
+        "smartXmlDiff.preserveLeadingTrailingWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preserve leading and trailing whitespace in text nodes. If false, leading/trailing whitespace will be trimmed."
+        },
+        "smartXmlDiff.normalizeWhitespaceInTextNodes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize internal whitespace in text nodes (collapse multiple spaces/tabs/newlines to a single space)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.3"
+  }
+}
