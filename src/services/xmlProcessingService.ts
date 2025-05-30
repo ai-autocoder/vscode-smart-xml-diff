@@ -5,11 +5,11 @@ export class XmlProcessingService {
     private readonly builder: XMLBuilder;
 
     constructor() {
-        const options = {
+        const parserOptions = {
             allowBooleanAttributes: true,
             ignoreAttributes: false,
             parseAttributeValue: true,
-            preserveOrder: true,
+            preserveOrder: false,
             trimValues: false,
             unpairedTags: [],
             suppressBooleanAttributes: false,
@@ -19,9 +19,14 @@ export class XmlProcessingService {
             processEntities: false,
             htmlEntities: false
         };
-        
-        this.parser = new XMLParser(options);
-        this.builder = new XMLBuilder(options);
+        const builderOptions = {
+            ...parserOptions,
+            format: false, // disables pretty printing
+            indentBy: '',
+            suppressEmptyNode: false
+        };
+        this.parser = new XMLParser(parserOptions);
+        this.builder = new XMLBuilder(builderOptions);
     }
 
     private validateXmlBasics(xml: string): void {
@@ -45,6 +50,17 @@ export class XmlProcessingService {
         
         if (openBrackets !== closeBrackets) {
             throw new Error('Malformed XML: Mismatched angle brackets');
+        }
+
+        // Check for invalid XML entities
+        // Only allow &lt;, &gt;, &amp;, &apos;, &quot; (predefined XML entities)
+        const entityPattern = /&([a-zA-Z0-9]+);/g;
+        let match;
+        const allowedEntities = new Set(['lt', 'gt', 'amp', 'apos', 'quot']);
+        while ((match = entityPattern.exec(trimmed)) !== null) {
+            if (!allowedEntities.has(match[1])) {
+                throw new Error('Malformed XML: Invalid or unsupported entity');
+            }
         }
     }
 
@@ -90,8 +106,11 @@ export class XmlProcessingService {
             // Sort nodes to normalize structure
             const normalized = this.sortNodes(parsed);
 
-            // Convert back to formatted XML string
-            return this.builder.build(normalized);
+            // Convert back to compact XML string
+            let xmlOut = this.builder.build(normalized);
+            // Remove redundant whitespace between tags
+            xmlOut = xmlOut.replace(/>\s+</g, '><').trim();
+            return xmlOut;
         } catch (e) {
             const errorMessage = e instanceof Error ? e.message : 'Unknown XML parsing error';
             throw new Error(`Malformed XML: ${errorMessage}`);
