@@ -1,0 +1,13 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background is transparent for PNG export -->
+  <!-- 16px padding on all sides -->
+  <g>
+    <!-- Left angle bracket -->
+    <polyline points="40,32 24,64 40,96" stroke="#0066cc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Right angle bracket -->
+    <polyline points="88,32 104,64 88,96" stroke="#0066cc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Overlap for visual hierarchy -->
+    <polyline points="48,40 64,64 48,88" stroke="#0066cc" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+    <polyline points="80,40 64,64 80,88" stroke="#0066cc" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  </g>
+</svg>
