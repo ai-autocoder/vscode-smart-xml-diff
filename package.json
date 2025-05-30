@@ -73,6 +73,18 @@
           "type": "boolean",
           "default": true,
           "description": "Normalize internal whitespace in text nodes (collapse multiple spaces/tabs/newlines to a single space)."
+        },
+        "smartXmlDiff.indentation": {
+          "type": "number",
+          "default": 2,
+          "description": "Number of spaces to use for XML indentation in diff output",
+          "scope": "resource"
+        },
+        "smartXmlDiff.sortAttributes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to sort XML attributes alphabetically before comparison",
+          "scope": "resource"
         }
       }
     }

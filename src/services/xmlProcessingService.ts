@@ -2,20 +2,24 @@ import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { NodeSorter } from '../utils/nodeSorter';
 import { WhitespaceUtils, WhitespaceOptions } from '../utils/whitespaceUtils';
 import { NamespaceUtils } from '../utils/namespaceUtils';
+import { getXmlDiffConfig } from '../utils/fileUtils';
 
 export class XmlProcessingService {
   private parser: XMLParser;
   private builder: XMLBuilder;
+  private sortAttributes: boolean;
 
   constructor() {
-    // Enable pretty print with 2-space indentation for diff view
+    const config = getXmlDiffConfig();
+    const indentBy = config.indentation === 'tabs' ? '\t' : ' '.repeat(2);
     this.parser = new XMLParser({ ignoreAttributes: false });
     this.builder = new XMLBuilder({
       ignoreAttributes: false,
       format: true,
-      indentBy: '  ', // 2 spaces
-      suppressEmptyNode: false, // always show <tag></tag> for empty nodes
+      indentBy,
+      suppressEmptyNode: false,
     });
+    this.sortAttributes = config.sortAttributes;
   }
 
   parse(xml: string): any {
@@ -51,7 +55,9 @@ export class XmlProcessingService {
    */
   parseSortAndNormalizeAttributes(xml: string): string {
     const parsed = this.parse(xml);
-    const sorted = NodeSorter.sortAndNormalizeAttributes(parsed);
+    const sorted = this.sortAttributes
+      ? NodeSorter.sortAndNormalizeAttributes(parsed)
+      : NodeSorter.sort(parsed);
     return this.build(sorted);
   }
 
@@ -68,7 +74,9 @@ export class XmlProcessingService {
     const parsed = this.parse(xml);
     const options = whitespaceOptions || WhitespaceUtils.getOptions();
     const whitespaceNormalized = WhitespaceUtils.normalizeWhitespace(parsed, options);
-    const sorted = NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized);
+    const sorted = this.sortAttributes
+      ? NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized)
+      : NodeSorter.sort(whitespaceNormalized);
     return this.build(sorted);
   }
 
@@ -82,7 +90,9 @@ export class XmlProcessingService {
     const parsed = this.parse(xml);
     const options = whitespaceOptions || WhitespaceUtils.getOptions();
     const whitespaceNormalized = WhitespaceUtils.normalizeWhitespace(parsed, options);
-    const sorted = NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized);
+    const sorted = this.sortAttributes
+      ? NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized)
+      : NodeSorter.sort(whitespaceNormalized);
     const nsNormalized = NamespaceUtils.normalizeNamespaces(sorted);
     return this.build(nsNormalized);
   }
