@@ -12,7 +12,14 @@ export class XmlProcessingService {
   constructor() {
     const config = getXmlDiffConfig();
     const indentBy = config.indentation === 'tabs' ? '\t' : ' '.repeat(2);
-    this.parser = new XMLParser({ ignoreAttributes: false });
+    this.parser = new XMLParser({
+      ignoreAttributes: false,
+      trimValues: false,
+      parseTagValue: true,
+      stopNodes: ['*.pre', '*.script'],
+      allowBooleanAttributes: true,
+      parseAttributeValue: false,
+    });
     this.builder = new XMLBuilder({
       ignoreAttributes: false,
       format: true,
@@ -26,7 +33,7 @@ export class XmlProcessingService {
     try {
       return this.parser.parse(xml);
     } catch (e) {
-      // Attach a custom error for malformed XML
+      // Attach a custom error with more context
       const err = new Error('Malformed XML');
       (err as any).original = e;
       throw err;
