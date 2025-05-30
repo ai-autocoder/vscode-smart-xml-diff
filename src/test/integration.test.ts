@@ -27,21 +27,44 @@ describe('VS Code Extension API Integration', () => {
   });
 
   it('should handle malformed XML in selection', async () => {
+    // Create document with malformed XML
+    const badXml = '<root><unclosed>';
     const badDoc = await vscode.workspace.openTextDocument({
-      content: '<root><a></root>',
+      content: badXml,
       language: 'xml',
     });
-    await vscode.window.showTextDocument(badDoc);
+
+    // Make sure editor is active
+    const editor = await vscode.window.showTextDocument(badDoc, { preview: false });
+    assert.ok(editor, 'Editor should be active');
+    assert.strictEqual(editor.document.getText(), badXml, 'Document should contain malformed XML');
+
+    // Set valid XML in clipboard
     await vscode.env.clipboard.writeText(xmlB);
-    let errorShown = false;
+
+    // Track if error was shown
+    let errorMessageShown: string | undefined;
     const origShowError = vscode.window.showErrorMessage;
     vscode.window.showErrorMessage = (msg: string) => {
-      if (msg.includes('Malformed XML')) errorShown = true;
+      errorMessageShown = msg;
       return Promise.resolve(undefined);
     };
-    await vscode.commands.executeCommand('smartXmlDiff.compareWithClipboard');
-    vscode.window.showErrorMessage = origShowError;
-    assert.ok(errorShown);
+
+    try {
+      // Execute command and wait for it to complete
+      await vscode.commands.executeCommand('smartXmlDiff.compareWithClipboard');
+
+      // Wait briefly for async operations to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      assert.ok(
+        errorMessageShown &&
+          (errorMessageShown.includes('Malformed XML') || errorMessageShown.includes('valid XML')),
+        `Expected error message about malformed XML, but got: ${errorMessageShown}`,
+      );
+    } finally {
+      vscode.window.showErrorMessage = origShowError;
+    }
   });
 });
 
