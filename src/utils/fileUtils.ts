@@ -15,14 +15,11 @@ export function isUtf8(document: vscode.TextDocument): boolean {
   return document.encoding === undefined || document.encoding === 'utf8';
 }
 
-export function isFileSizeWithinLimit(
-  document: vscode.TextDocument,
-  maxBytes = 10 * 1024 * 1024,
-): boolean {
-  // VS Code TextDocument provides line count and text length, but not raw file size
-  // Approximate by Buffer.byteLength
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export function isFileSizeWithinLimit(document: vscode.TextDocument): boolean {
   const text = document.getText();
-  return Buffer.byteLength(text, 'utf8') <= maxBytes;
+  const bytes = Buffer.byteLength(text, 'utf8');
+  return bytes < MAX_FILE_SIZE; // Strictly less than limit
 }
 
 export interface XmlDiffConfig {

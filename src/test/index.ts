@@ -1,30 +1,28 @@
 import * as path from 'path';
-import { default as Mocha } from 'mocha';
 import * as glob from 'glob';
+const Mocha = require('mocha');
 
 export async function run(): Promise<void> {
   // Create the mocha test
   const mocha = new Mocha({
-    ui: 'bdd', // Use BDD interface (describe, it, etc)
-    color: true, // Enable colored output
-    timeout: 100000, // 100s timeout (VS Code tests can be slow)
+    ui: 'bdd',
+    timeout: 60000,
+    color: true,
   });
 
   try {
-    console.log('VS Code test bootstrapper starting...');
-    const testFiles = glob.sync('**/*.test.js', {
-      cwd: path.resolve(__dirname),
-      absolute: true,
-    });
-    console.log('Found test files:', testFiles);
+    // Find all test files
+    const testsRoot = path.resolve(__dirname);
+    const files = glob.sync('**/*.test.js', { cwd: testsRoot });
 
-    // Add files to the test suite
-    testFiles.forEach((f) => mocha.addFile(f));
-    console.log('Added files to test suite');
+    console.log('Found test files:', files);
 
-    try {
-      // Run the mocha test
-      await new Promise<void>((resolve, reject) => {
+    // Add them to mocha
+    files.forEach((f) => mocha.addFile(path.resolve(testsRoot, f)));
+
+    // Run tests
+    return new Promise<void>((resolve, reject) => {
+      try {
         mocha.run((failures: number) => {
           if (failures > 0) {
             reject(new Error(`${failures} tests failed.`));
@@ -32,15 +30,11 @@ export async function run(): Promise<void> {
             resolve();
           }
         });
-      });
-    } catch (err) {
-      console.error('Test execution failed:', err);
-      throw err;
-    }
-
-    console.log('All test files completed successfully');
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
   } catch (err) {
-    console.error('Test bootstrapper error:', err);
-    throw err;
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }

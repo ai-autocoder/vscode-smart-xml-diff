@@ -1,106 +1,100 @@
-import { XMLParser, XMLBuilder } from 'fast-xml-parser';
-import { NodeSorter } from '../utils/nodeSorter';
-import { WhitespaceUtils, WhitespaceOptions } from '../utils/whitespaceUtils';
-import { NamespaceUtils } from '../utils/namespaceUtils';
-import { getXmlDiffConfig } from '../utils/fileUtils';
+import { XMLParser, XMLBuilder, XMLValidator } from 'fast-xml-parser';
 
 export class XmlProcessingService {
-  private parser: XMLParser;
-  private builder: XMLBuilder;
-  private sortAttributes: boolean;
+    private readonly parser: XMLParser;
+    private readonly builder: XMLBuilder;
 
-  constructor() {
-    const config = getXmlDiffConfig();
-    const indentBy = config.indentation === 'tabs' ? '\t' : ' '.repeat(2);
-    this.parser = new XMLParser({
-      ignoreAttributes: false,
-      trimValues: false,
-      parseTagValue: true,
-      stopNodes: ['*.pre', '*.script'],
-      allowBooleanAttributes: true,
-      parseAttributeValue: false,
-    });
-    this.builder = new XMLBuilder({
-      ignoreAttributes: false,
-      format: true,
-      indentBy,
-      suppressEmptyNode: false,
-    });
-    this.sortAttributes = config.sortAttributes;
-  }
-
-  parse(xml: string): any {
-    try {
-      return this.parser.parse(xml);
-    } catch (e) {
-      // Attach a custom error with more context
-      const err = new Error('Malformed XML');
-      (err as any).original = e;
-      throw err;
+    constructor() {
+        const options = {
+            allowBooleanAttributes: true,
+            ignoreAttributes: false,
+            parseAttributeValue: true,
+            preserveOrder: true,
+            trimValues: false,
+            unpairedTags: [],
+            suppressBooleanAttributes: false,
+            suppressEmptyNode: false,
+            parseTrueNumberOnly: true,
+            stopNodes: ['**.'],
+            processEntities: false,
+            htmlEntities: false
+        };
+        
+        this.parser = new XMLParser(options);
+        this.builder = new XMLBuilder(options);
     }
-  }
 
-  build(obj: any): string {
-    return this.builder.build(obj);
-  }
+    private validateXmlBasics(xml: string): void {
+        if (!xml || typeof xml !== 'string') {
+            throw new Error('Invalid XML input: Input must be a non-empty string');
+        }
 
-  /**
-   * Parses and sorts an XML string by tag name using NodeSorter.
-   * @param xml XML string
-   * @returns Sorted XML string
-   */
-  parseAndSort(xml: string): string {
-    const parsed = this.parse(xml);
-    const sorted = NodeSorter.sort(parsed);
-    return this.build(sorted);
-  }
+        const trimmed = xml.trim();
+        
+        // Basic XML structure validation
+        if (!trimmed.startsWith('<')) {
+            throw new Error('Malformed XML: Document must start with "<"');
+        }
+        if (!trimmed.endsWith('>')) {
+            throw new Error('Malformed XML: Document must end with ">"');
+        }
 
-  /**
-   * Parses and sorts an XML string by tag name and normalizes attributes.
-   * @param xml XML string
-   * @returns Sorted and attribute-normalized XML string
-   */
-  parseSortAndNormalizeAttributes(xml: string): string {
-    const parsed = this.parse(xml);
-    const sorted = this.sortAttributes
-      ? NodeSorter.sortAndNormalizeAttributes(parsed)
-      : NodeSorter.sort(parsed);
-    return this.build(sorted);
-  }
+        // Count angle brackets to detect obvious malformed XML
+        const openBrackets = (trimmed.match(/</g) || []).length;
+        const closeBrackets = (trimmed.match(/>/g) || []).length;
+        
+        if (openBrackets !== closeBrackets) {
+            throw new Error('Malformed XML: Mismatched angle brackets');
+        }
+    }
 
-  /**
-   * Parses, normalizes whitespace, sorts nodes and attributes for XML string.
-   * @param xml XML string
-   * @param whitespaceOptions Whitespace normalization options
-   * @returns XML string with whitespace, node, and attribute normalization
-   */
-  parseNormalizeWhitespaceSortAndNormalizeAttributes(
-    xml: string,
-    whitespaceOptions?: WhitespaceOptions,
-  ): string {
-    const parsed = this.parse(xml);
-    const options = whitespaceOptions || WhitespaceUtils.getOptions();
-    const whitespaceNormalized = WhitespaceUtils.normalizeWhitespace(parsed, options);
-    const sorted = this.sortAttributes
-      ? NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized)
-      : NodeSorter.sort(whitespaceNormalized);
-    return this.build(sorted);
-  }
+    private sortNodes(node: any): any {
+        if (Array.isArray(node)) {
+            return node.map(item => this.sortNodes(item));
+        }
 
-  /**
-   * Parses, normalizes whitespace, sorts nodes and attributes, and normalizes namespaces for XML string.
-   * @param xml XML string
-   * @param whitespaceOptions Whitespace normalization options
-   * @returns XML string with whitespace, node, attribute, and namespace normalization
-   */
-  parseNormalizeAll(xml: string, whitespaceOptions?: WhitespaceOptions): string {
-    const parsed = this.parse(xml);
-    const options = whitespaceOptions || WhitespaceUtils.getOptions();
-    const whitespaceNormalized = WhitespaceUtils.normalizeWhitespace(parsed, options);
-    const sorted = this.sortAttributes
-      ? NodeSorter.sortAndNormalizeAttributes(whitespaceNormalized)
-      : NodeSorter.sort(whitespaceNormalized);
-    const nsNormalized = NamespaceUtils.normalizeNamespaces(sorted);
-    return this.build(nsNormalized);
-  }
+        if (node && typeof node === 'object') {
+            // Sort child nodes
+            const sorted: any = {};
+            Object.keys(node)
+                .sort((a, b) => a.localeCompare(b))
+                .forEach(key => {
+                    sorted[key] = this.sortNodes(node[key]);
+                });
+            return sorted;
+        }
+
+        return node;
+    }
+
+    parseNormalizeAll(xml: string): string {
+        // Initial validation
+        this.validateXmlBasics(xml);
+
+        // Use XMLValidator for detailed validation
+        const result = XMLValidator.validate(xml, {
+            allowBooleanAttributes: true
+        });
+
+        if (result !== true) {
+            throw new Error(`Malformed XML: ${result.err.msg}`);
+        }
+
+        try {
+            // Parse XML to object
+            const parsed = this.parser.parse(xml.trim());
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('XML parsing failed - empty or invalid result');
+            }
+
+            // Sort nodes to normalize structure
+            const normalized = this.sortNodes(parsed);
+
+            // Convert back to formatted XML string
+            return this.builder.build(normalized);
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'Unknown XML parsing error';
+            throw new Error(`Malformed XML: ${errorMessage}`);
+        }
+    }
 }
