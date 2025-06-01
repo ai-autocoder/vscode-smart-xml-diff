@@ -3,12 +3,7 @@
 ## Table of Contents
 - [Overview](#overview)
 - [Key Features](#key-features)
-- [Target Audience](#target-audience)
-- [Supported XML Types](#supported-xml-types)
-- [Installation](#installation)
-  - [Marketplace](#install-from-marketplace)
-  - [Manual](#manual-installation)
-  - [Requirements](#requirements)
+- [When to Use This Extension](#when-to-use-this-extension)
 - [Usage](#usage)
   - [Step-by-Step Workflow](#step-by-step-workflow)
   - [Screenshots](#screenshots)
@@ -17,81 +12,58 @@
 - [Configuration](#configuration)
   - [Settings Reference](#settings-reference)
   - [Example Configurations](#example-configurations)
-- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
-- [Version History](#version-history)
 - [Support](#support)
-- [Credits](#credits)
 
 ---
 
 ## Overview
-Smart XML Diff enhances Visual Studio Code by providing a powerful, noise-free XML comparison workflow. It enables developers and XML specialists to compare selected XML fragments with clipboard content, highlighting only meaningful differences and ignoring irrelevant node order or formatting changes.
+Smart XML Diff enhances Visual Studio Code by providing a powerful XML comparison workflow specifically designed for situations where the **order of sibling XML nodes (nodes under the same parent) is not semantically important**. It enables developers and XML specialists to compare selected XML fragments with clipboard content. The extension intelligently reorders sibling nodes and normalizes formatting to highlight only meaningful differences in structure and content, significantly reducing noise from positional changes.
 
 ## Key Features
-- **Context Menu Integration:** Compare selected XML with clipboard via right-click.
-- **Smart Diff Algorithm:** Ignores node order, normalizes whitespace, and sorts attributes for accurate comparisons.
-- **VS Code Diff View:** Leverages the native diff interface for a familiar experience.
-- **Large File Support:** Handles files up to 10MB with progress indicators.
-- **Error Handling:** Clear messages for malformed XML or clipboard issues.
-- **Configurable:** Options for whitespace, attribute sorting, and more.
+- **Context Menu Integration:** Easily compare selected XML text with clipboard content via a right-click context menu action.
+- **Smart Diff Algorithm:**
+    - **Reorders Sibling Nodes:** Automatically rearranges child nodes under the same parent to match their counterparts in the other document, based on tag name. This is the core feature for ignoring insignificant order differences.
+    - **Normalizes Whitespace:** Standardizes indentation and spacing within text content according to configuration.
+- **VS Code Diff View:** Leverages VS Code's native diff interface for a familiar and powerful comparison experience.
 
-## Target Audience
-- Software developers working with XML configs (Spring, .NET, build tools)
-- Data engineers and analysts
-- System integrators
-- Technical writers and XML specialists
+## When to Use This Extension
+This extension is **most effective** and **intended for use** when comparing XML documents where:
+- The order of elements that are direct children of the same parent node **does not affect the meaning or validity** of the XML. For example, a list of `<property>` elements where their sequence doesn't matter.
+- You want to quickly find differences in element presence, attribute values, or text content, without being distracted by nodes simply being in a different position under their shared parent.
 
-## Supported XML Types
-- Any well-formed XML file or snippet
-- UTF-8 encoded XML
-- XML with namespaces, attributes, and mixed content
-
----
-
-## Installation
-
-### Install from Marketplace
-1. Open VS Code and go to the Extensions view (`Ctrl+Shift+X`).
-2. Search for `Smart XML Diff`.
-3. Click **Install**.
-
-### Manual Installation
-1. Download the latest `.vsix` release from the [GitHub Releases](https://github.com/your-repo/xml-diff/releases) page.
-2. In VS Code, press `Ctrl+Shift+P` and run `Extensions: Install from VSIX...`.
-3. Select the downloaded file.
-
-### Requirements
-- **VS Code Version:** 1.74.0 or higher
-- **Dependencies:** None (bundled with `fast-xml-parser`)
+**If the order of sibling nodes is crucial for your XML's semantics (e.g., a sequence of `<step>` elements in a process), this tool will reorder them and may obscure or misrepresent order-dependent changes. In such cases, a standard text diff tool might be more appropriate for those specific sections.**
 
 ---
 
 ## Usage
 
 ### Step-by-Step Workflow
-1. **Open an XML file** in VS Code.
-2. **Select** the XML fragment you want to compare (or leave unselected to use the whole file).
-3. **Copy** the XML to compare from another source to your clipboard.
-4. **Right-click** in the editor and choose **Smart XML Diff: Compare with Clipboard**.
-5. The extension will normalize both XMLs and open a diff view:
-   - **Left:** Your selection (or file)
-   - **Right:** Clipboard content
-6. Review highlighted differences—only meaningful changes are shown.
+1.  **Open an XML file** in VS Code or have an XML snippet ready.
+2.  **Select** the XML fragment in your editor that you wish to use as the first source for comparison.
+3.  **Copy** the other XML content (the second source) to your system clipboard.
+4.  **Right-click** on your selected text in the editor.
+5.  From the context menu, choose **Compare XML with Clipboard**.
+6.  The extension will:
+    *   Parse the selected XML and the clipboard XML.
+    *   Normalize both XML structures. This includes reordering sibling nodes (children of the same parent) to match each other if they have the same tag name, and applying whitespace normalization rules.
+    *   Open VS Code's standard diff view, showing the normalized version of your selection on the left and the normalized version of the clipboard content on the right.
+7.  Review the highlighted differences. These differences should primarily represent changes in content, attributes, or the presence/absence of nodes, rather than just changes in sibling node order.
 
 ### Screenshots
-> _Add screenshots here showing the context menu, diff view, and normalization results._
+ TODO
 
 ### Commands & Shortcuts
-- **Command Palette:** `Smart XML Diff: Compare with Clipboard`
-- **Context Menu:** Right-click in XML editor
-- _No default keyboard shortcut; assign one via VS Code Keyboard Shortcuts if desired._
+-   **Context Menu Command:** `Compare XML with Clipboard` (visible when text is selected in an editor).
+-   **Command Palette:** Search for `Smart XML Diff: Compare XML with Clipboard` (this command will also require a selection to be active).
+-   **Keyboard Shortcut:** No default keyboard shortcut is assigned. Users can assign a custom shortcut via VS Code's "Keyboard Shortcuts" settings (`File > Preferences > Keyboard Shortcuts`) by searching for the command name.
 
 ### Best Practices
-- Select only the relevant XML block for focused comparisons.
-- Use the extension for config files, API payloads, or any XML where node order is not semantically significant.
-- For large files, wait for the progress indicator to complete.
+-   **Understand When to Use:** This tool is powerful when sibling node order is irrelevant. If node order *is* critical, use this tool cautiously or supplement with a standard text diff.
+-   **Select Precisely:** For focused comparisons, select only the relevant XML block. This can also improve performance with very large documents.
+-   **Valid XML:** Ensure both your selection and clipboard content are well-formed XML to avoid parsing errors.
+-   **Large Files:** For files approaching or exceeding a few megabytes, be patient as normalization can take time. The extension aims to provide progress indication for longer operations.
 
 ---
 
@@ -120,32 +92,6 @@ All settings can be found in VS Code's settings under `Smart XML Diff`:
 
 ---
 
-## Troubleshooting
-
-### Known Limitations
-- Only compares selection vs. clipboard (not two arbitrary files—planned for future).
-- Node equivalence is based on tag name (key attributes planned for future).
-- Large files (>10MB) are not supported.
-
-### Common Error Messages
-- **"Malformed XML in selection."**
-  _Solution:_ Ensure your selection is valid XML.
-- **"Malformed XML in clipboard."**
-  _Solution:_ Copy only valid XML to the clipboard.
-- **"File exceeds 10MB size limit."**
-  _Solution:_ Reduce file size or selection.
-- **"Failed to access clipboard."**
-  _Solution:_ Check system clipboard permissions.
-
-### Performance Tips
-- For best results, compare only the relevant XML block.
-- Close unused VS Code tabs to free memory for large comparisons.
-
-### Compatibility
-- No known conflicts with other XML extensions.
-
----
-
 ## Contributing
 Contributions are welcome! Just send a pull request via GitHub.
 
@@ -155,7 +101,3 @@ MIT License.
 ## Support
 - [GitHub Issues](https://github.com/your-repo/xml-diff/issues)
 - [VS Code Marketplace Q&A](https://marketplace.visualstudio.com/items?itemName=your-publisher.xml-diff)
-
-## Credits
-- Built with [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
-- Inspired by the needs of developers and XML professionals
