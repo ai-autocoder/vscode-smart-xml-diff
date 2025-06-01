@@ -66,11 +66,48 @@ export class XmlProcessingService {
 
   private sortNodes(node: any): any {
     if (Array.isArray(node)) {
-      return node.map((item) => this.sortNodes(item));
+      const result: any[] = [];
+      let i = 0;
+      while (i < node.length) {
+        // If this is a string or not an object, just push and continue
+        if (typeof node[i] !== 'object' || node[i] === null) {
+          result.push(node[i]);
+          i++;
+          continue;
+        }
+        // If element node (object with one key)
+        if (Object.keys(node[i]).length === 1) {
+          const tag = Object.keys(node[i])[0];
+          // Gather run of element nodes with the same tag
+          const run: any[] = [];
+          while (
+            i < node.length &&
+            typeof node[i] === 'object' &&
+            node[i] !== null &&
+            Object.keys(node[i]).length === 1 &&
+            Object.keys(node[i])[0] === tag
+          ) {
+            run.push(this.sortNodes(node[i]));
+            i++;
+          }
+          // Sort the run by stringified content
+          run.sort((a, b) => {
+            const strA = JSON.stringify(a[tag]);
+            const strB = JSON.stringify(b[tag]);
+            return strA.localeCompare(strB);
+          });
+          result.push(...run);
+        } else {
+          // Non-element object (attributes, etc.), just push as is
+          result.push(this.sortNodes(node[i]));
+          i++;
+        }
+      }
+      return result;
     }
 
     if (node && typeof node === 'object') {
-      // Sort child nodes
+      // Sort child nodes (object keys)
       const sorted: any = {};
       Object.keys(node)
         .sort((a, b) => a.localeCompare(b))
