@@ -21,8 +21,8 @@ export class XmlProcessingService {
     };
     const builderOptions = {
       ...parserOptions,
-      format: false, // disables pretty printing
-      indentBy: '',
+      format: true, // enables pretty printing
+      indentBy: '  ', // 2 spaces for indentation
       suppressEmptyNode: false,
     };
     this.parser = new XMLParser(parserOptions);
@@ -143,11 +143,9 @@ export class XmlProcessingService {
       // Sort nodes to normalize structure
       const normalized = this.sortNodes(parsed);
 
-      // Convert back to compact XML string
+      // Convert back to formatted XML string
       let xmlOut = this.builder.build(normalized);
-      // Remove redundant whitespace between tags
-      xmlOut = xmlOut.replace(/>\s+</g, '><').trim();
-      return xmlOut;
+      return xmlOut.trim();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown XML parsing error';
       throw new Error(`Malformed XML: ${errorMessage}`);
