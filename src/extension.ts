@@ -115,7 +115,6 @@ export class XmlDiffHandler implements vscode.Disposable {
 
     const config = vscode.workspace.getConfiguration('smartXmlDiff');
     const userIndentationSpaces = config.get<number>('indentation');
-    const sortAttributesEnabled = config.get<boolean>('sortAttributes', true);
 
     const currentNormalizationOptions: Partial<XmlNormalizationOptions> = {
       ignoreInsignificantWhitespace: config.get<boolean>(
@@ -136,13 +135,6 @@ export class XmlDiffHandler implements vscode.Disposable {
     if (userIndentationSpaces !== undefined) {
       currentNormalizationOptions.indentationString = ' '.repeat(
         Math.max(0, userIndentationSpaces),
-      );
-    }
-
-    if (!sortAttributesEnabled) {
-      this.outputChannel.appendLine(
-        "Info: The 'smartXmlDiff.sortAttributes' setting is currently 'false'. " +
-          'However, due to the current normalization strategy, attributes are always sorted alphabetically. ',
       );
     }
 

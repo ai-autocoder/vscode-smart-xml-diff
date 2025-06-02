@@ -14,9 +14,6 @@ export interface XmlNormalizationOptions {
   prettyPrintOutput: boolean;
   /** The string used for indentation when pretty-printing. */
   indentationString: string;
-  // Future options can be added here, e.g.:
-  // sortAttributes: boolean;
-  // keyAttributesForSorting: Record<string, string>;
 }
 
 export const defaultXmlNormalizationOptions: XmlNormalizationOptions = {

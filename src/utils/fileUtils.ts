@@ -21,18 +21,3 @@ export function isFileSizeWithinLimit(document: vscode.TextDocument): boolean {
   const bytes = Buffer.byteLength(text, 'utf8');
   return bytes < MAX_FILE_SIZE; // Strictly less than limit
 }
-
-export interface XmlDiffConfig {
-  indentation: 'spaces' | 'tabs';
-  sortAttributes: boolean;
-}
-
-export function getXmlDiffConfig(): XmlDiffConfig {
-  const config = vscode.workspace.getConfiguration('smartXmlDiff');
-  let indentation = config.get<string>('indentation', 'spaces');
-  if (indentation !== 'spaces' && indentation !== 'tabs') {
-    indentation = 'spaces';
-  }
-  const sortAttributes = config.get<boolean>('sortAttributes', false);
-  return { indentation: indentation as 'spaces' | 'tabs', sortAttributes };
-}

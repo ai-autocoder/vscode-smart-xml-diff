@@ -1,126 +1,120 @@
 {
-	"name": "smart-xml-diff",
-	"displayName": "Smart XML Diff",
-	"description": "A Visual Studio Code extension for smart, noise-free XML comparison. Compares selected XML with clipboard content, normalizes node order, whitespace, and attributes for accurate, meaningful diffs. Ideal for developers, data engineers, and XML specialists.",
-	"version": "1.0.0",
-	"publisher": "FrancescoAnzalone",
-	"license": "MIT",
-	"homepage": "https://github.com/ai-autocoder/vscode-smart-xml-diff",
-	"bugs": {
-		"url": "https://github.com/ai-autocoder/vscode-smart-xml-diff/issues"
-	},
-	"keywords": [
-		"xml",
-		"diff",
-		"compare",
-		"visual studio code",
-		"vscode",
-		"normalization",
-		"node order",
-		"clipboard"
-	],
-	"author": {
-		"name": "Francesco Anzalone"
-	},
-	"icon": "resources/icon.png",
-	"contributors": [],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/ai-autocoder/vscode-smart-xml-diff"
-	},
-	"engines": {
-		"vscode": "^1.74.0"
-	},
-	"categories": [
-		"Other",
-		"Linters",
-		"Formatters"
-	],
-	"activationEvents": [
-		"onLanguage:xml",
-		"onSelection"
-	],
-	"main": "./dist/extension.js",
-	"contributes": {
-		"commands": [
-			{
-				"command": "smartXmlDiff.compareWithClipboard",
-				"title": "Smart XML Diff: Compare with Clipboard"
-			}
-		],
-		"menus": {
-			"editor/context": [
-				{
-					"command": "smartXmlDiff.compareWithClipboard",
-					"when": "editorLangId == xml",
-					"group": "navigation@100"
-				}
-			]
-		},
-		"configuration": {
-			"type": "object",
-			"title": "Smart XML Diff",
-			"properties": {
-				"smartXmlDiff.ignoreWhitespace": {
-					"type": "boolean",
-					"default": true,
-					"description": "Ignore insignificant whitespace between XML elements and normalize whitespace in text nodes before diffing."
-				},
-				"smartXmlDiff.preserveLeadingTrailingWhitespace": {
-					"type": "boolean",
-					"default": false,
-					"description": "Preserve leading and trailing whitespace in text nodes. If false, leading/trailing whitespace will be trimmed."
-				},
-				"smartXmlDiff.normalizeWhitespaceInTextNodes": {
-					"type": "boolean",
-					"default": true,
-					"description": "Normalize internal whitespace in text nodes (collapse multiple spaces/tabs/newlines to a single space)."
-				},
-				"smartXmlDiff.indentation": {
-					"type": "number",
-					"default": 2,
-					"description": "Number of spaces to use for XML indentation in diff output",
-					"scope": "resource"
-				},
-				"smartXmlDiff.sortAttributes": {
-					"type": "boolean",
-					"default": true,
-					"description": "Whether to sort XML attributes alphabetically before comparison",
-					"scope": "resource"
-				}
-			}
-		}
-	},
-	"scripts": {
-		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.js --watch",
-		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run lint && node esbuild.js --production",
-		"compile-tests": "tsc -p . --outDir out",
-		"watch-tests": "tsc -p . -w --outDir out",
-		"pretest": "npm run compile-tests && npm run compile && npm run lint",
-		"check-types": "tsc --noEmit",
-		"lint": "eslint src",
-		"test": "tsc -p . --outDir out && node ./out/test/runTest.js"
-	},
-	"devDependencies": {
-		"@types/mocha": "^10.0.10",
-		"@types/node": "20.x",
-		"@types/vscode": "^1.74.0",
-		"@typescript-eslint/eslint-plugin": "^8.31.1",
-		"@typescript-eslint/parser": "^8.31.1",
-		"@vscode/test-cli": "^0.0.10",
-		"@vscode/test-electron": "^2.5.2",
-		"esbuild": "^0.25.3",
-		"eslint": "^9.25.1",
-		"glob": "^11.0.2",
-		"npm-run-all": "^4.1.5",
-		"prettier": "^3.5.3",
-		"typescript": "^5.8.3"
-	},
-	"dependencies": {
-		"fast-xml-parser": "^4.5.3"
-	}
+  "name": "smart-xml-diff",
+  "displayName": "Smart XML Diff",
+  "description": "A Visual Studio Code extension for smart, noise-free XML comparison. Compares selected XML with clipboard content, normalizes node order, whitespace, and attributes for accurate, meaningful diffs. Ideal for developers, data engineers, and XML specialists.",
+  "version": "1.0.0",
+  "publisher": "FrancescoAnzalone",
+  "license": "MIT",
+  "homepage": "https://github.com/ai-autocoder/vscode-smart-xml-diff",
+  "bugs": {
+    "url": "https://github.com/ai-autocoder/vscode-smart-xml-diff/issues"
+  },
+  "keywords": [
+    "xml",
+    "diff",
+    "compare",
+    "visual studio code",
+    "vscode",
+    "normalization",
+    "node order",
+    "clipboard"
+  ],
+  "author": {
+    "name": "Francesco Anzalone"
+  },
+  "icon": "resources/icon.png",
+  "contributors": [],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ai-autocoder/vscode-smart-xml-diff"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Linters",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:xml",
+    "onSelection"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smartXmlDiff.compareWithClipboard",
+        "title": "Smart XML Diff: Compare with Clipboard"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "smartXmlDiff.compareWithClipboard",
+          "when": "editorLangId == xml",
+          "group": "navigation@100"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Smart XML Diff",
+      "properties": {
+        "smartXmlDiff.ignoreWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignore insignificant whitespace between XML elements and normalize whitespace in text nodes before diffing."
+        },
+        "smartXmlDiff.preserveLeadingTrailingWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preserve leading and trailing whitespace in text nodes. If false, leading/trailing whitespace will be trimmed."
+        },
+        "smartXmlDiff.normalizeWhitespaceInTextNodes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize internal whitespace in text nodes (collapse multiple spaces/tabs/newlines to a single space)."
+        },
+        "smartXmlDiff.indentation": {
+          "type": "number",
+          "default": 2,
+          "description": "Number of spaces to use for XML indentation in diff output",
+          "scope": "resource"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "tsc -p . --outDir out && node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "glob": "^11.0.2",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.3"
+  }
 }
