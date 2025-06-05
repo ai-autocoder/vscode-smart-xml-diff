@@ -90,8 +90,6 @@ export class XmlDiffHandler implements vscode.Disposable {
     xmlDiffProvider.setContent(leftUri, normalizedA);
     xmlDiffProvider.setContent(rightUri, normalizedB);
 
-    const leftTitle = `${baseFileName} (Normalized)`;
-    const rightTitle = `Clipboard (Normalized)`;
     const diffTitle = `XML Diff: ${path.basename(baseFileName)} ↔ Clipboard`;
 
     try {
