@@ -104,7 +104,6 @@ export class XmlDiffHandler implements vscode.Disposable {
 
   async compareWithClipboard(editor: vscode.TextEditor): Promise<void> {
     this.outputChannel.clear();
-    this.outputChannel.show(true);
 
     this.outputChannel.appendLine('Starting XML comparison with clipboard...');
 
