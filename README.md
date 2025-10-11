@@ -32,6 +32,18 @@ Smart XML Diff enhances Visual Studio Code by providing a powerful XML compariso
   - **Sorts Attributes:** Optionally sorts element attributes alphabetically by name.
 - **VS Code Diff View:** Leverages VS Code's native diff interface for a familiar and powerful comparison experience.
 
+<p align="center">
+  <img src="./resources/UI-button.png" alt="Smart XML Diff UI Screenshot" />
+</p>
+
+### Before: Standard VS Code Diff
+
+![Diff without Smart XML Diff Screenshot](./resources/sample-without-sxd.png)
+
+### After: With Smart XML Diff
+
+![Diff with Smart XML Diff Screenshot](./resources/sample-with-sxd.png)
+
 ## When to Use This Extension
 
 This extension is **most effective** and **intended for use** when comparing XML documents where:
