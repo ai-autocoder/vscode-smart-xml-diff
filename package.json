@@ -2,7 +2,7 @@
   "name": "smart-xml-diff",
   "displayName": "Smart XML Diff",
   "description": "A Visual Studio Code extension for smart, noise-free XML comparison. Compares selected XML with clipboard content, normalizes node order, whitespace, and attributes for accurate, meaningful diffs. Ideal for developers, data engineers, and XML specialists.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "FrancescoAnzalone",
   "license": "MIT",
   "homepage": "https://github.com/ai-autocoder/vscode-smart-xml-diff",
