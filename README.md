@@ -1,4 +1,52 @@
-# Smart XML Diff VS Code Extension
+<h1 align="center">
+
+<img src="https://github.com/ai-autocoder/vscode-smart-xml-diff/blob/main/resources/icon.png?raw=true" width="200" alt="Logo">
+
+Smart XML Diff
+
+</h1>
+
+<h3 align="center">Smart, noise-free XML comparison</h3>
+
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=FrancescoAnzalone.smart-xml-diff">
+    <img
+      alt="VS Marketplace Version"
+      src="https://vsmarketplacebadges.dev/version-short/FrancescoAnzalone.smart-xml-diff.png"
+    />
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=FrancescoAnzalone.smart-xml-diff">
+    <img
+      alt="VS Marketplace Installs"
+      src="https://vsmarketplacebadges.dev/installs-short/FrancescoAnzalone.smart-xml-diff.png"
+    />
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=FrancescoAnzalone.smart-xml-diff">
+  <img
+    alt="VS Marketplace Downloads"
+    src="https://vsmarketplacebadges.dev/downloads-short/FrancescoAnzalone.smart-xml-diff.png"
+  >
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=FrancescoAnzalone.smart-xml-diff">
+    <img
+      alt="VS Marketplace Rating"
+      src="https://vsmarketplacebadges.dev/rating-star/FrancescoAnzalone.smart-xml-diff.png"
+    />
+  </a>
+</p>
+
+<!-- Project meta -->
+<p align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
+</p>
+
+<p align="center">
+  <a href="#usage">Getting started</a>
+  ·
+  <a href="https://github.com/ai-autocoder/vscode-smart-xml-diff/issues">Report an issue</a>
+</p>
+
+---
 
 ## Table of Contents
 
