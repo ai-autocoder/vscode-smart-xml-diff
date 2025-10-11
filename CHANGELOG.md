@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.3]
+
+- Add screenshots section to README
+
 ## [1.0.2]
 
 - Remove unnecessary output channel display in clipboard comparison
