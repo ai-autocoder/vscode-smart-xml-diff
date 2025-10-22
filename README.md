@@ -35,9 +35,36 @@ Smart XML Diff
   </a>
 </p>
 
+<p align="center">
+  <a href="https://open-vsx.org/extension/FrancescoAnzalone/smart-xml-diff">
+    <img
+      alt="Open VSX Version"
+      src="https://img.shields.io/open-vsx/v/FrancescoAnzalone/smart-xml-diff?label=Open%20VSX"
+    />
+  </a>
+  <a href="https://open-vsx.org/extension/FrancescoAnzalone/smart-xml-diff">
+    <img
+      alt="Open VSX Downloads"
+      src="https://img.shields.io/open-vsx/dt/FrancescoAnzalone/smart-xml-diff?label=Downloads"
+    />
+  </a>
+  <a href="https://open-vsx.org/extension/FrancescoAnzalone/smart-xml-diff">
+    <img
+      alt="Open VSX Rating"
+      src="https://img.shields.io/open-vsx/rating/FrancescoAnzalone/smart-xml-diff?label=Rating"
+    />
+  </a>
+</p>
+
 <!-- Project meta -->
 <p align="center">
   <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
+  <a href="https://prettier.io">
+    <img alt="Code Style: Prettier" src="https://img.shields.io/badge/code_style-prettier-ff69b4.svg" />
+  </a>
+  <a href="https://eslint.org">
+    <img alt="Linting: ESLint" src="https://img.shields.io/badge/linting-eslint-4B32C3.svg" />
+  </a>
 </p>
 
 <p align="center">
