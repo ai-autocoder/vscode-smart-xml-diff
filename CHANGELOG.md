@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.4]
+
+- Update README
+- Update dependencies
+
 ## [1.0.3]
 
 - Add screenshots section to README
