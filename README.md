@@ -150,10 +150,6 @@ This extension is **most effective** and **intended for use** when comparing XML
     - Open VS Code's standard diff view, showing the normalized version of your selection/document on the left and the normalized version of the clipboard content on the right.
 7.  Review the highlighted differences. These differences should primarily represent changes in content, attributes, or the presence/absence of nodes, rather than just changes in the order of distinct sibling node types.
 
-### Screenshots
-
-TODO
-
 ### Commands & Shortcuts
 
 - **Context Menu Command:** `Compare XML with Clipboard` (visible when an editor is active; uses selection or whole document).
