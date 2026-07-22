@@ -1,120 +1,78 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Smart XML Diff is a VS Code extension (TypeScript, bundled with esbuild) that diffs the active XML editor/selection against the clipboard. Both sides are normalized first so only semantic differences show up.
 
-## Project Overview
+## Commands
 
-Smart XML Diff is a Visual Studio Code extension that provides intelligent XML comparison with clipboard content. The extension normalizes XML before diffing by sorting sibling nodes with different tag names alphabetically (while preserving order of same-tag siblings), normalizing whitespace, and optionally sorting attributes. This reduces noise from semantically insignificant differences.
+```bash
+npm run compile      # check-types + lint + esbuild (dev build, sourcemaps)
+npm run watch        # tsc --noEmit --watch and esbuild --watch in parallel
+npm run package      # production build (minified); also runs on vscode:prepublish
+npm run check-types  # tsc --noEmit
+npm run lint         # eslint src
+npm test             # pretest (compile-tests + compile + lint), then Mocha in a VS Code instance
+```
 
-**Key concept**: The extension sorts sibling elements with *different* tag names alphabetically, but preserves the relative order of sibling elements with the *same* tag name. This is designed for XML where distinct sibling ordering is not semantically meaningful.
-
-## Development Commands
-
-### Build and Watch
-- `npm run compile` - Type check, lint, and build with esbuild
-- `npm run watch` - Run TypeScript type checking and esbuild in watch mode (parallel)
-- `npm run package` - Production build (type check, lint, minify)
-
-### Testing
-- `npm test` - Run all tests (compiles, builds, lints, then runs Mocha tests)
-- `npm run pretest` - Compile tests, build extension, and lint (runs before tests)
-- `npm run compile-tests` - Compile TypeScript tests to `out/` directory
-
-### Code Quality
-- `npm run check-types` - Run TypeScript type checking without emitting files
-- `npm run lint` - Run ESLint on `src/` directory
-
-### Publishing
-- `npm run vscode:prepublish` - Runs automatically before publishing (same as `package`)
+- Tests run inside a downloaded VS Code instance via `@vscode/test-electron` (`src/test/runTest.ts` → `src/test/index.ts`), so the first run needs network access and a display. Compiled tests land in `out/` (gitignored, like `dist/`).
+- Press F5 in VS Code to launch an Extension Development Host for manual testing.
+- Code style is enforced by Prettier (`.prettierrc`: single quotes, semicolons, trailing commas, 100 cols) and ESLint. Run `npm run lint` before finishing a change.
 
 ## Architecture
 
-### Core Processing Flow
+Only two files contain live logic:
 
-1. **Extension Entry (`src/extension.ts`)**:
-   - Registers custom URI scheme (`smartXmlDiff`) via `XmlDiffContentProvider`
-   - Implements `XmlDiffHandler` which orchestrates the comparison workflow
-   - Command `smartXmlDiff.compareWithClipboard` triggers the diff operation
-   - Retrieves selected XML (or full document) and clipboard content
-   - Passes both through `XmlProcessingService` for normalization
-   - Uses VS Code's native diff view (`vscode.diff` command) to display results
+- `src/extension.ts` — `activate()` registers the `smartXmlDiff:` virtual-document scheme (`XmlDiffContentProvider`, in-memory map keyed by URI) and the `smartXmlDiff.compareWithClipboard` command. `XmlDiffHandler.compareWithClipboard()` reads the selection (or whole document if the selection is empty), reads the clipboard, normalizes both with `XmlProcessingService`, stores the results in the provider, and opens them with the built-in `vscode.diff` command. Errors are surfaced via `showErrorMessage` and logged to the "Smart XML Diff" output channel.
+- `src/services/xmlProcessingService.ts` — `XmlProcessingService.parseNormalizeAll(xml)` is the whole pipeline: basic validation (`validateXmlBasics`) → `XMLValidator` → `fast-xml-parser` parse → `normalizeTextContent` → `sortNodes` → `XMLBuilder` build. It has no `vscode` dependency, so it is unit-testable without the extension host.
 
-2. **XML Processing Service (`src/services/xmlProcessingService.ts`)**:
-   - Uses `fast-xml-parser` library for parsing and building XML
-   - Main method: `parseNormalizeAll(xml: string): string`
-   - Validates XML structure and entities before parsing
-   - Normalizes text content and whitespace based on configuration
-   - Sorts all object keys (elements and attributes) alphabetically
-   - Rebuilds XML with consistent formatting
+`src/utils/fileUtils.ts` is used (10 MB limit, `isFileSizeWithinLimit`, applied to the editor document only, not the clipboard).
 
-3. **Utility Modules** (in `src/utils/`):
-   - **`nodeSorter.ts`**: Provides `NodeSorter.sort()` and `NodeSorter.sortAndNormalizeAttributes()` for recursive sorting of XML node trees. Separates attributes (`@_` prefix) from children, sorts child keys alphabetically, and preserves text nodes.
-   - **`whitespaceUtils.ts`**: Handles whitespace normalization based on user settings (ignore, preserve leading/trailing, normalize internal whitespace).
-   - **`namespaceUtils.ts`**: Normalizes XML namespaces by moving all `xmlns` declarations to the root node and removing duplicates.
-   - **`fileUtils.ts`**: Contains `isFileSizeWithinLimit()` to enforce 10MB file size limit.
+**`src/utils/nodeSorter.ts`, `whitespaceUtils.ts` and `namespaceUtils.ts` are not imported anywhere** — they are leftover from an earlier design. Sorting and whitespace handling live as private methods in `XmlProcessingService`. Change behavior there, not in those files, and don't assume namespace normalization (moving `xmlns` to the root) happens. Check with grep before relying on or deleting them.
 
-### Key Data Flow
+## Normalization behavior (the core idea)
 
-```
-User Selection/Document → XmlDiffHandler.compareWithClipboard()
-                           ↓
-Clipboard Content -------→ XmlProcessingService.parseNormalizeAll()
-                           ↓
-                    [Validate → Parse → Normalize Text → Sort Nodes → Build]
-                           ↓
-                    XmlDiffContentProvider (stores normalized content)
-                           ↓
-                    VS Code Diff View (vscode.diff command)
-```
+- **Sorting:** `sortNodes` sorts every object's keys with `localeCompare`. With `preserveOrder: false`, `fast-xml-parser` groups siblings by tag name, so *different* tag names end up alphabetical while *same-name* siblings stay an array in their original relative order (arrays are mapped, never sorted). Attributes (`@_` prefix) are sorted in the same pass.
+- **Comments** are dropped (`ignoreComments: true`); the XML declaration is parsed like any other node.
+- **Whitespace:** parser `trimValues` is the inverse of `preserveLeadingTrailingWhitespaceInText`; `normalizeTextContent` collapses internal whitespace runs to one space and also applies to attribute values.
+- **Entities:** the parser does not decode (`processEntities: false`), the builder encodes (`processEntities: true`). `validateXmlBasics` accepts only `lt gt amp apos quot` plus well-formed numeric references; DTD-defined entities are rejected by design.
+- **Output:** always pretty-printed with `<tag></tag>` (never `<tag/>`) for consistency.
+- Parser errors are rethrown as `Malformed XML...` or `XML processing error: ...`; `extension.ts` prefixes them with which side (selection or clipboard) was invalid. Tests assert on these message prefixes, so don't reword them casually.
 
-### Configuration
+## Configuration
 
-The extension reads VS Code workspace settings under `smartXmlDiff`:
-- `ignoreWhitespace` (default: `true`) - Ignore insignificant whitespace
-- `preserveLeadingTrailingWhitespace` (default: `false`) - Preserve leading/trailing whitespace in text nodes
-- `normalizeWhitespaceInTextNodes` (default: `true`) - Collapse multiple spaces/tabs/newlines to single space
-- `indentation` (default: `2`) - Number of spaces for indentation in diff output
+User settings live under `smartXmlDiff.*` and are declared in `package.json` (`contributes.configuration`) — add new settings there *and* in the `config.get(...)` block in `compareWithClipboard`, then map them onto `XmlNormalizationOptions`.
 
-These settings are read in `extension.ts:113-136` and passed to `XmlProcessingService`.
+| Setting | Default | Maps to `XmlNormalizationOptions` |
+|---|---|---|
+| `ignoreWhitespace` | `true` | `ignoreInsignificantWhitespace` (only matters when pretty-print is off, which the extension never does) |
+| `preserveLeadingTrailingWhitespace` | `false` | `preserveLeadingTrailingWhitespaceInText` |
+| `normalizeWhitespaceInTextNodes` | `true` | `normalizeWhitespaceInTextNodes` |
+| `indentation` | `2` | `indentationString` (`' '.repeat(n)`) |
 
-## Build System
+## Tests
 
-- Uses **esbuild** for bundling (configured in `esbuild.js`)
-- Entry point: `src/extension.ts`
-- Output: `dist/extension.js` (single bundled file)
-- External: `vscode` module is not bundled (provided by VS Code runtime)
-- Production builds are minified; development builds include sourcemaps
+- Mocha `describe`/`it` style, files in `src/test/*.test.ts`. `xmlProcessingService.test.ts` is the big one (pure service logic); `integration.test.ts` and `extension.test.ts` need the extension host.
+- XML fixtures live in `xml-fixtures/` (`nodes-position/`, `nodes-whitespace/` pairs, plus `edge_*.xml` and `sample*.xml`). Add new fixture pairs there rather than inlining large XML strings.
+- When changing normalization, add a test for the new case first; the service is deterministic, so assert on exact output strings.
 
-## Testing
+## Packaging notes
 
-- Test framework: Mocha with `@vscode/test-electron`
-- Test runner: `src/test/runTest.ts`
-- Tests are located in `src/test/` directory
-- Tests compile to `out/` directory before running
-- Integration tests verify end-to-end XML normalization and diffing
+- Entry `src/extension.ts` → single bundle `dist/extension.js`; `vscode` is external (see `esbuild.js`).
+- Activation: `onLanguage:xml` and `onSelection`; the context-menu entry only shows when `editorLangId == xml`. Minimum VS Code is `^1.74.0` (keep `@types/vscode` aligned with it; don't use newer APIs).
+- Update `CHANGELOG.md` for user-facing changes, and keep its top entry in sync with the `version` in `package.json` (they currently differ: 1.0.4 vs 1.0.3).
+- Dependencies are deliberately minimal: `fast-xml-parser` (v4) is the only runtime dependency. Don't upgrade to v5 without checking the parser/builder option names used above.
 
-## Important Implementation Details
+## Task tracking (VS Code Todo MCP)
 
-### XML Parser Configuration
-The `fast-xml-parser` is configured with:
-- `preserveOrder: false` - Allows conversion to object representation where keys are tag names
-- `ignoreAttributes: false` - Attributes are preserved with `@_` prefix
-- `ignoreComments: true` - Comments are stripped for semantic comparison
-- `trimValues` - Controlled by `preserveLeadingTrailingWhitespaceInText` option
+When the `todo_*` tools are connected, the MCP is this project's task tracker. Reach for it
+when the task at hand actually involves tracked work — don't call it on every turn:
 
-### Sorting Behavior
-All object keys are sorted alphabetically in `xmlProcessingService.ts:160-164`. This means:
-- Sibling elements with different tag names are sorted
-- Attributes are sorted
-- The relative order of elements with the *same* tag name in an array is preserved (arrays map each element, but don't re-sort the array itself)
+- **When the user refers to tasks, todos, plans, or "what's next"** (or you need to find
+  existing tracked work), read with `todo_list_items` / `todo_count_items` (`workspace` scope)
+  before searching the repo — the MCP is the source of truth for outstanding work.
+- **When you produce a multi-step plan worth keeping**, save it with `todo_add_items`
+  (`workspace`) and tag every step with one shared plan tag via `todo_set_tags`; re-read it
+  with the `tag` filter.
+- **When you finish a tracked step**, mark it with `todo_set_completed` (don't delete).
 
-### Custom URI Scheme
-The extension uses a custom URI scheme `smartXmlDiff:` to provide virtual documents to VS Code's diff view. The `XmlDiffContentProvider` stores normalized XML content in memory and provides it when VS Code requests the content for comparison.
-
-## Package Metadata
-
-- Publisher: `FrancescoAnzalone`
-- Extension ID: `smart-xml-diff`
-- Minimum VS Code version: `1.74.0`
-- Language support: Activated for XML files (`onLanguage:xml`)
-- Context menu: Available in XML editor context menu
+Skip it for quick questions or one-off edits that aren't about tracked work. Each tool's
+description covers scopes, notes, filtering, and read-only behavior.
