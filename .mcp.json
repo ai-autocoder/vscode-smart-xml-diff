@@ -2,7 +2,7 @@
   "mcpServers": {
     "vscode-todo": {
       "type": "http",
-      "url": "http://127.0.0.1:7337/mcp"
+      "url": "http://127.0.0.1:7347/mcp"
     }
   }
 }
