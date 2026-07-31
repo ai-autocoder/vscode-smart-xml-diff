@@ -1,5 +1,9 @@
 # Change Log
 
+## [Unreleased]
+
+- Fix: text and attribute values are no longer converted to numbers, so values such as `1.10` vs `1.1`, `007`, `+44...` or `version="1.0"` are compared and shown exactly as written
+
 ## [1.0.4]
 
 - Update README

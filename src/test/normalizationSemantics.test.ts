@@ -73,6 +73,39 @@ describe('Normalization semantics (exact output)', () => {
     });
   });
 
+  describe('values are shown exactly as written (no number coercion)', () => {
+    it('keeps number-like text values verbatim', () => {
+      assert.strictEqual(
+        normalize(
+          '<r><a>1.10</a><b>01234</b><c>+441234567890</c><d>0x1F</d><e>1e3</e><f>.5</f></r>',
+        ),
+        '<r>\n  <a>1.10</a>\n  <b>01234</b>\n  <c>+441234567890</c>\n  <d>0x1F</d>\n  <e>1e3</e>\n  <f>.5</f>\n</r>',
+      );
+    });
+
+    it('keeps number-like attribute values and the XML declaration verbatim', () => {
+      assert.strictEqual(
+        normalize('<?xml version="1.0"?><r v="007" w="1.0" x="0x10"/>'),
+        '<?xml version="1.0"?>\n<r v="007" w="1.0" x="0x10"></r>',
+      );
+    });
+
+    it('keeps number-like values verbatim in CDATA and when preserving surrounding whitespace', () => {
+      assert.strictEqual(normalize('<r><a><![CDATA[007]]></a></r>'), '<r>\n  <a>007</a>\n</r>');
+      assert.strictEqual(
+        normalize('<r v=" 007 "><a>1.10</a></r>', {
+          preserveLeadingTrailingWhitespaceInText: true,
+        }),
+        '<r v=" 007 ">\n  <a>1.10</a>\n</r>',
+      );
+    });
+
+    it('shows numerically equal but differently written values as differences', () => {
+      assert.notStrictEqual(normalize('<a>1.10</a>'), normalize('<a>1.1</a>'));
+      assert.notStrictEqual(normalize('<a v="007"/>'), normalize('<a v="7"/>'));
+    });
+  });
+
   describe('fixtures: the diff shows only the real change', () => {
     it('nodes-position: heavy child reordering reduces to the single Stock change', () => {
       const diff = differingLines(

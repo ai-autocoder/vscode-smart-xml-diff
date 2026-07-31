@@ -35,13 +35,15 @@ export class XmlProcessingService {
     const parserOptions = {
       allowBooleanAttributes: true,
       ignoreAttributes: false,
-      parseAttributeValue: true,
+      // Keep text and attribute values exactly as written: coercing them to numbers would
+      // make e.g. `1.10` equal to `1.1` and rewrite `007` as `7`.
+      parseTagValue: false,
+      parseAttributeValue: false,
       preserveOrder: false,
       trimValues: !this.options.preserveLeadingTrailingWhitespaceInText,
       unpairedTags: [],
       suppressBooleanAttributes: false,
       suppressEmptyNode: false, // Parser option, influences how empty tags might be represented initially
-      parseTrueNumberOnly: true,
       processEntities: false,
       htmlEntities: false,
       ignoreComments: true, // Comments are typically ignored for semantic diff
