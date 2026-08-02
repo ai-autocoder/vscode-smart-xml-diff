@@ -22,7 +22,7 @@ npm test             # pretest (compile-tests + compile + lint), then Mocha in a
 Only two files contain live logic:
 
 - `src/extension.ts` — `activate()` registers the `smartXmlDiff:` virtual-document scheme (`XmlDiffContentProvider`, in-memory map keyed by URI) and the `smartXmlDiff.compareWithClipboard` command. `XmlDiffHandler.compareWithClipboard()` reads the selection (or whole document if the selection is empty), reads the clipboard, normalizes both with `XmlProcessingService`, stores the results in the provider, and opens them with the built-in `vscode.diff` command. Errors are surfaced via `showErrorMessage` and logged to the "Smart XML Diff" output channel.
-- `src/services/xmlProcessingService.ts` — `XmlProcessingService.parseNormalizeAll(xml)` is the whole pipeline: basic validation (`validateXmlBasics`) → `XMLValidator` → `fast-xml-parser` parse → `normalizeTextContent` → `sortNodes` → `XMLBuilder` build. It has no `vscode` dependency, so it is unit-testable without the extension host.
+- `src/services/xmlProcessingService.ts` — `XmlProcessingService.parseNormalizeAll(xml)` is the whole pipeline: trim + basic checks (`validateXmlBasics`) → `XMLValidator` → `validateEntityReferences` → `fast-xml-parser` parse → `normalizeTextContent` → `sortNodes` → `XMLBuilder` build. It has no `vscode` dependency, so it is unit-testable without the extension host.
 
 `src/utils/fileUtils.ts` is used (10 MB limit, `isFileSizeWithinLimit`, applied to the editor document only, not the clipboard).
 
@@ -33,7 +33,8 @@ Only two files contain live logic:
 - **Sorting:** `sortNodes` sorts every object's keys with `localeCompare`. With `preserveOrder: false`, `fast-xml-parser` groups siblings by tag name, so *different* tag names end up alphabetical while *same-name* siblings stay an array in their original relative order (arrays are mapped, never sorted). Attributes (`@_` prefix) are sorted in the same pass.
 - **Comments** are dropped (`ignoreComments: true`); the XML declaration is parsed like any other node.
 - **Whitespace:** parser `trimValues` is the inverse of `preserveLeadingTrailingWhitespaceInText`; `normalizeTextContent` collapses internal whitespace runs to one space and also applies to attribute values.
-- **Entities:** the parser does not decode (`processEntities: false`), the builder encodes (`processEntities: true`). `validateXmlBasics` accepts only `lt gt amp apos quot` plus well-formed numeric references; DTD-defined entities are rejected by design.
+- **Entities:** the parser does not decode (`processEntities: false`), the builder encodes (`processEntities: true`). `validateEntityReferences` accepts only `lt gt amp apos quot` plus well-formed numeric references in text and attribute values (not inside comments, CDATA or processing instructions); DTD-defined entities are rejected by design. When the raw string contains an unsupported reference (or an `&` running into markup), it decides from a second parse that keeps CDATA apart (`cdataPropName`), so it sees exactly what the parser sees; don't replace that with a regex lexer over the raw string.
+- **Validation** runs on the same trimmed string the parser receives (so whitespace or a BOM before `<?xml ...?>` is fine); `XMLValidator` decides well-formedness (plus a check that the document ends with `>`, for truncated input it lets through), so don't add raw-string heuristics such as bracket counting.
 - **Output:** always pretty-printed with `<tag></tag>` (never `<tag/>`) for consistency.
 - Parser errors are rethrown as `Malformed XML...` or `XML processing error: ...`; `extension.ts` prefixes them with which side (selection or clipboard) was invalid. Tests assert on these message prefixes, so don't reword them casually.
 
