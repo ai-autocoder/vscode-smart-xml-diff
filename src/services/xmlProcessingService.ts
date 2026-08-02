@@ -24,8 +24,33 @@ export const defaultXmlNormalizationOptions: XmlNormalizationOptions = {
   indentationString: '  ', // Default to two spaces for indentation
 };
 
+/**
+ * Key under which the entity check parser keeps CDATA content apart from text. It contains a
+ * space so that it cannot collide with a tag name (the parser ends tag names at whitespace).
+ */
+const CDATA_KEY = '#cdata section';
+const PREDEFINED_ENTITIES = new Set(['lt', 'gt', 'amp', 'apos', 'quot']);
+
+/**
+ * Returns the error for the first entity reference in `text` other than the five predefined ones
+ * and numeric character references (DTD-defined entities are not supported), if there is one.
+ */
+function findUnsupportedEntityReference(text: string): string | undefined {
+  for (const [, name] of text.matchAll(/&([a-zA-Z0-9#]+);/g)) {
+    if (name.startsWith('#')) {
+      if (!/^#(?:[0-9]+|x[0-9a-fA-F]+)$/.test(name)) {
+        return `Malformed XML: Invalid numeric entity &${name};`;
+      }
+    } else if (!PREDEFINED_ENTITIES.has(name)) {
+      return `Malformed XML: Invalid or unsupported named entity &${name}; (Note: DTD-defined entities are not processed/supported)`;
+    }
+  }
+  return undefined;
+}
+
 export class XmlProcessingService {
   private readonly parser: XMLParser;
+  private readonly entityCheckParser: XMLParser;
   private readonly builder: XMLBuilder;
   private readonly options: XmlNormalizationOptions;
 
@@ -65,47 +90,58 @@ export class XmlProcessingService {
     };
 
     this.parser = new XMLParser(parserOptions);
+    // Reads text and attribute values exactly like `parser`, but keeps CDATA content apart.
+    this.entityCheckParser = new XMLParser({ ...parserOptions, cdataPropName: CDATA_KEY });
     this.builder = new XMLBuilder(builderOptions);
   }
 
-  private validateXmlBasics(xml: string): void {
+  /** Checks that the input is a non-empty string that looks like XML, and returns it trimmed. */
+  private validateXmlBasics(xml: string): string {
     if (!xml || typeof xml !== 'string') {
       throw new Error('Invalid XML input: Input must be a non-empty string');
     }
 
+    // trim() also removes a leading byte order mark.
     const trimmed = xml.trim();
     if (trimmed.length === 0) {
       throw new Error('Invalid XML input: Input is an empty string after trimming');
     }
 
-    const openBrackets = (trimmed.match(/</g) || []).length;
-    const closeBrackets = (trimmed.match(/>/g) || []).length;
-
-    if (
-      openBrackets === 0 &&
-      closeBrackets === 0 &&
-      !trimmed.startsWith('<') &&
-      !trimmed.startsWith('<?xml')
-    ) {
+    if (!trimmed.includes('<') && !trimmed.includes('>')) {
       throw new Error('Malformed XML: Does not appear to be XML, missing < and >.');
     }
-    if (openBrackets !== closeBrackets) {
-      throw new Error('Malformed XML: Mismatched angle brackets');
-    }
+    return trimmed;
+  }
 
-    const entityPattern = /&([a-zA-Z0-9#]+);/g;
-    let match;
-    const allowedNamedEntities = new Set(['lt', 'gt', 'amp', 'apos', 'quot']);
-    while ((match = entityPattern.exec(trimmed)) !== null) {
-      const entityName = match[1];
-      if (entityName.startsWith('#')) {
-        if (!/^#(?:[0-9]+|x[0-9a-fA-F]+)$/.test(entityName)) {
-          throw new Error(`Malformed XML: Invalid numeric entity &${entityName};`);
+  /**
+   * Rejects unsupported entity references in text and attribute values (see
+   * findUnsupportedEntityReference). XMLValidator only checks their syntax, and only in text.
+   */
+  private validateEntityReferences(xml: string): void {
+    // Most documents skip the parse: they contain no unsupported reference anywhere, and no `&`
+    // that runs into markup (the parser joins the text around markup, so in malformed input that
+    // XMLValidator lets through, `&nb<!---->sp;` reads as `&nbsp;`). Otherwise parse to find out
+    // whether a reference ends up in text or an attribute value, rather than in a comment, CDATA
+    // section or processing instruction (whose content is not parsed for references).
+    if (findUnsupportedEntityReference(xml) !== undefined || /&[a-zA-Z0-9#]*\s*</.test(xml)) {
+      this.assertSupportedEntityReferences(this.entityCheckParser.parse(xml));
+    }
+  }
+
+  private assertSupportedEntityReferences(node: unknown): void {
+    if (typeof node === 'string') {
+      const error = findUnsupportedEntityReference(node);
+      if (error) {
+        throw new Error(error);
+      }
+    } else if (node && typeof node === 'object') {
+      for (const [key, value] of Object.entries(node)) {
+        // Skip CDATA sections and processing instructions (keyed by `?target`). Check names too:
+        // in malformed input that XMLValidator lets through, they can contain references.
+        if (key !== CDATA_KEY && !key.startsWith('?')) {
+          this.assertSupportedEntityReferences(key);
+          this.assertSupportedEntityReferences(value);
         }
-      } else if (!allowedNamedEntities.has(entityName)) {
-        throw new Error(
-          `Malformed XML: Invalid or unsupported named entity &${entityName}; (Note: DTD-defined entities are not processed/supported)`,
-        );
       }
     }
   }
@@ -170,9 +206,12 @@ export class XmlProcessingService {
   }
 
   parseNormalizeAll(xml: string): string {
-    this.validateXmlBasics(xml);
+    // Validate exactly the string that gets parsed, so that e.g. a newline before the XML
+    // declaration is accepted. Error positions therefore count from the first non-whitespace
+    // character.
+    const trimmedXml = this.validateXmlBasics(xml);
 
-    const validationResult = XMLValidator.validate(xml, {
+    const validationResult = XMLValidator.validate(trimmedXml, {
       allowBooleanAttributes: true,
     });
 
@@ -182,8 +221,15 @@ export class XmlProcessingService {
       );
     }
 
+    // XMLValidator accepts some truncated input such as `<a/` (the parser then fails with a
+    // TypeError). A complete document always ends with `>`: the root end tag, a comment or a
+    // processing instruction.
+    if (!trimmedXml.endsWith('>')) {
+      throw new Error("Malformed XML: Incomplete document, expected it to end with '>'");
+    }
+
     try {
-      const trimmedXml = xml.trim();
+      this.validateEntityReferences(trimmedXml);
       let parsed = this.parser.parse(trimmedXml);
 
       if (!parsed || typeof parsed !== 'object' || Object.keys(parsed).length === 0) {

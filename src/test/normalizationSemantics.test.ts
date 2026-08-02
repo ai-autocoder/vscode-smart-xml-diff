@@ -71,6 +71,71 @@ describe('Normalization semantics (exact output)', () => {
     it('accepts leading whitespace when there is no XML declaration', () => {
       assert.strictEqual(normalize('\n  <r/>'), '<r></r>');
     });
+
+    it('accepts whitespace and a byte order mark before the XML declaration', () => {
+      const expected = '<?xml version="1.0"?>\n<r></r>';
+      assert.strictEqual(normalize('\n<?xml version="1.0"?><r/>'), expected);
+      assert.strictEqual(normalize('\uFEFF\r\n  <?xml version="1.0"?><r/>'), expected);
+    });
+  });
+
+  describe('validation accepts well-formed XML but not undeclared entities', () => {
+    it('accepts > in text and attribute values', () => {
+      assert.strictEqual(normalize('<a v="a>b">x > y</a>'), '<a v="a&gt;b">x &gt; y</a>');
+    });
+
+    it('does not check the content of CDATA sections, comments and processing instructions', () => {
+      assert.strictEqual(
+        normalize('<r><c><![CDATA[x => a < b &nbsp;]]></c><!-- a -> b &copy; --></r>'),
+        '<r>\n  <c>x =&gt; a &lt; b &amp;nbsp;</c>\n</r>',
+      );
+      // Only acceptance is asserted: processing instructions and the DOCTYPE are not yet
+      // reproduced faithfully in the output.
+      assert.doesNotThrow(() => normalize('<r><?php echo "&nbsp;"; ?><?pi a="&copy;"?></r>'));
+      assert.doesNotThrow(() =>
+        normalize("<!DOCTYPE r [ <!-- it's a note --> ]><r><![CDATA[&nbsp;]]>don't</r>"),
+      );
+    });
+
+    it('rejects undeclared entities in text and attribute values, next to any markup', () => {
+      for (const xml of [
+        '<a>&nbsp;</a>',
+        '<a v="&copy;"/>',
+        '<!-- <![CDATA[ --><a>&nbsp;</a><!-- ]]> -->',
+        '<a v="<!--">&nbsp;<b v="-->"/></a>',
+        `<!DOCTYPE r [ <!-- it's --> ]><r><a v="'>" w="<!--"/>&nbsp;<b w="-->"/></r>`,
+        // Malformed constructs that the parser ends earlier than the XML spec would must not
+        // hide the text that follows them.
+        '<r><?>&nbsp;</r>',
+        '<r><?>&nbsp;?></r>',
+        '<!DOCTYPE r [<!-->]><r>&nbsp;</r>',
+        '<!DOCTYPE r [<!-->]><r>&nbsp;</r><!-- -->',
+        '<!DOCTYPE r [<?-->]><r a="&copy;"/><?x?>',
+        // ... nor a reference split by markup, which the parser joins back together.
+        '<?><r>&nb<!---->sp;</r><?x?><r/>',
+        // Malformed names that the parser still reads as elements or attributes.
+        '<?><r><#cdata>&nbsp;</#cdata></r><?x?><r/>',
+        '<r><!x &nbsp;></r>',
+      ]) {
+        assert.throws(
+          () => normalize(xml),
+          /Malformed XML: Invalid or unsupported named entity/,
+          xml,
+        );
+      }
+    });
+
+    it('rejects malformed numeric references that XMLValidator lets through', () => {
+      for (const xml of ['<a>&#x;</a>', '<a v="&#;"/>', '<a v="&#xZZ;"/>']) {
+        assert.throws(() => normalize(xml), /Malformed XML: Invalid numeric entity/, xml);
+      }
+    });
+
+    it('rejects truncated input as malformed', () => {
+      for (const xml of ['<item id="5"/', '<a/>\n<b/', '<a/>x']) {
+        assert.throws(() => normalize(xml), /Malformed XML: Incomplete document/, xml);
+      }
+    });
   });
 
   describe('values are shown exactly as written (no number coercion)', () => {
