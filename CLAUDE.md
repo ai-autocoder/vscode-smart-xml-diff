@@ -44,10 +44,11 @@ User settings live under `smartXmlDiff.*` and are declared in `package.json` (`c
 
 | Setting | Default | Maps to `XmlNormalizationOptions` |
 |---|---|---|
-| `ignoreWhitespace` | `true` | `ignoreInsignificantWhitespace` (only matters when pretty-print is off, which the extension never does) |
 | `preserveLeadingTrailingWhitespace` | `false` | `preserveLeadingTrailingWhitespaceInText` |
 | `normalizeWhitespaceInTextNodes` | `true` | `normalizeWhitespaceInTextNodes` |
-| `indentation` | `2` | `indentationString` (`' '.repeat(n)`) |
+| `indentation` | `2` | `indentationString` (`' '.repeat(indentationWidth(n))`, clamped to 0-16) |
+
+Settings are read with the document URI as scope, so folder-level values of resource-scoped settings (`indentation`) apply. `XmlNormalizationOptions.ignoreInsignificantWhitespace` has no setting: it only matters when pretty-print is off, which the extension never does.
 
 ## Tests
 
@@ -59,7 +60,7 @@ User settings live under `smartXmlDiff.*` and are declared in `package.json` (`c
 
 - Entry `src/extension.ts` → single bundle `dist/extension.js`; `vscode` is external (see `esbuild.js`).
 - Activation: `onLanguage:xml` and `onSelection`; the context-menu entry only shows when `editorLangId == xml`. Minimum VS Code is `^1.74.0` (keep `@types/vscode` aligned with it; don't use newer APIs).
-- Update `CHANGELOG.md` for user-facing changes, and keep its top entry in sync with the `version` in `package.json` (they currently differ: 1.0.4 vs 1.0.3).
+- Update `CHANGELOG.md` for user-facing changes, and keep its top entry in sync with the `version` in `package.json`.
 - Dependencies are deliberately minimal: `fast-xml-parser` (v4) is the only runtime dependency. Don't upgrade to v5 without checking the parser/builder option names used above.
 
 ## Task tracking (VS Code Todo MCP)

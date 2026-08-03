@@ -82,7 +82,6 @@ Smart XML Diff
 - [When to Use This Extension](#when-to-use-this-extension)
 - [Usage](#usage)
   - [Step-by-Step Workflow](#step-by-step-workflow)
-  - [Screenshots](#screenshots)
   - [Commands & Shortcuts](#commands--shortcuts)
   - [Best Practices](#best-practices)
 - [Configuration](#configuration)
@@ -96,15 +95,16 @@ Smart XML Diff
 
 ## Overview
 
-Smart XML Diff enhances Visual Studio Code by providing a powerful XML comparison workflow. It's specifically designed for situations where the **alphabetical order of sibling XML nodes with _different_ tag names (nodes under the same parent) is not semantically important**, while the relative order of sibling nodes with the _same_ tag name is preserved. It enables developers and XML specialists to compare selected XML fragments with clipboard content. The extension intelligently sorts distinct sibling nodes, normalizes formatting, and standardizes whitespace to highlight only meaningful differences in structure and content, significantly reducing noise from positional changes of distinct sibling types.
+Smart XML Diff enhances Visual Studio Code by providing a powerful XML comparison workflow. It's specifically designed for situations where the **alphabetical order of sibling XML nodes with _different_ tag names (nodes under the same parent) is not semantically important**, while the relative order of sibling nodes with the _same_ tag name is preserved. It enables developers and XML specialists to compare selected XML (or a whole document) with clipboard content. The extension intelligently sorts distinct sibling nodes, normalizes formatting, and standardizes whitespace to highlight only meaningful differences in structure and content, significantly reducing noise from positional changes of distinct sibling types.
 
 ## Key Features
 
-- **Context Menu Integration:** Easily compare selected XML text with clipboard content via a right-click context menu action.
+- **Context Menu Integration:** In XML files, easily compare selected XML text (or the whole document) with clipboard content via a right-click context menu action.
 - **Smart Diff Algorithm:**
   - **Sorts Sibling Nodes (by distinct tag name):** Automatically sorts sibling elements with _different_ tag names alphabetically under their common parent. The relative order of sibling elements that share the _same_ tag name (e.g., a list of `<item>` elements) is preserved from the input. This helps ignore insignificant order differences between distinct types of child elements.
-  - **Normalizes Whitespace:** Standardizes indentation and spacing within text content according to configuration.
-  - **Sorts Attributes:** Optionally sorts element attributes alphabetically by name.
+  - **Normalizes Whitespace:** Standardizes indentation, and trims and collapses whitespace in text content and attribute values, according to configuration.
+  - **Sorts Attributes:** Sorts element attributes alphabetically by name, so attribute order never shows up as a difference.
+  - **Ignores Comments:** XML comments are removed before comparing.
 - **VS Code Diff View:** Leverages VS Code's native diff interface for a familiar and powerful comparison experience.
 
 <p align="center">
@@ -139,29 +139,30 @@ This extension is **most effective** and **intended for use** when comparing XML
 
 ### Step-by-Step Workflow
 
-1.  **Open an XML file** in VS Code or have an XML snippet ready.
-2.  **Select** the XML fragment in your editor that you wish to use as the first source for comparison. If no text is selected, the entire document content will be used.
+1.  **Open an XML file** in VS Code (or set the editor's language mode to XML).
+2.  **Select** the XML element in your editor that you wish to use as the first source for comparison: a single element, with everything inside it. If no text is selected, the entire document content will be used.
 3.  **Copy** the other XML content (the second source) to your system clipboard.
 4.  **Right-click** on your selected text in the editor (or anywhere in the editor if no text is selected).
-5.  From the context menu, choose **Compare XML with Clipboard**.
+5.  From the context menu, choose **Smart XML Diff: Compare with Clipboard**.
 6.  The extension will:
     - Parse the selected XML (or full document) and the clipboard XML.
-    - Normalize both XML structures. This includes sorting sibling nodes with different tag names alphabetically, preserving the relative order of same-tagged sibling elements, optionally sorting attributes, and applying whitespace normalization rules.
+    - Normalize both XML structures. This includes sorting sibling nodes with different tag names alphabetically, preserving the relative order of same-tagged sibling elements, sorting attributes, removing comments, and applying whitespace normalization rules.
     - Open VS Code's standard diff view, showing the normalized version of your selection/document on the left and the normalized version of the clipboard content on the right.
 7.  Review the highlighted differences. These differences should primarily represent changes in content, attributes, or the presence/absence of nodes, rather than just changes in the order of distinct sibling node types.
 
 ### Commands & Shortcuts
 
-- **Context Menu Command:** `Compare XML with Clipboard` (visible when an editor is active; uses selection or whole document).
-- **Command Palette:** Search for `Smart XML Diff: Compare XML with Clipboard` (this command will also require an active editor and use selection or whole document).
+- **Context Menu Command:** `Smart XML Diff: Compare with Clipboard` (shown in XML files; uses selection or whole document).
+- **Command Palette:** Search for `Smart XML Diff: Compare with Clipboard` (this command also requires an active editor and uses selection or whole document; in a file that isn't XML it shows a warning first).
 - **Keyboard Shortcut:** No default keyboard shortcut is assigned. Users can assign a custom shortcut via VS Code's "Keyboard Shortcuts" settings (`File > Preferences > Keyboard Shortcuts`) by searching for the command name.
 
 ### Best Practices
 
 - **Understand Sorting Behavior:** Be aware that sibling elements with _different_ tag names are sorted alphabetically. The relative order of sibling elements with the _same_ tag name is preserved. This is key to interpreting the diff correctly.
 - **Select Precisely:** For focused comparisons on parts of a large document, select only the relevant XML block. This can also improve performance.
-- **Valid XML:** Ensure both your selection/document and clipboard content are well-formed XML to avoid parsing errors.
-- **Large Files:** For files approaching the 10MB limit, be patient as normalization can take time. The extension aims to provide progress indication for longer operations.
+- **Valid XML:** Ensure both your selection/document and clipboard content are well-formed XML with a single root element to avoid parsing errors. Selecting several sibling elements without their common parent isn't supported and is usually reported as malformed XML.
+- **Entities:** In text and attribute values, only the predefined entities (`&lt;` `&gt;` `&amp;` `&apos;` `&quot;`) and numeric character references (such as `&#160;`) are supported. Others, such as HTML's `&nbsp;`, aren't supported and are generally reported as errors. Inside CDATA sections and comments, any text is fine.
+- **Large Files:** The document in the editor must be smaller than 10MB. Large inputs can take a few seconds to normalize, and no progress indicator is shown.
 
 ---
 
@@ -171,18 +172,18 @@ This extension is **most effective** and **intended for use** when comparing XML
 
 All settings can be found in VS Code's settings under `Smart XML Diff`:
 
-| Setting                                          | Default | Description                                                                                                |
-| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `smartXmlDiff.ignoreWhitespace`                  | `true`  | Ignore insignificant whitespace between elements and normalize whitespace in text nodes.                   |
-| `smartXmlDiff.preserveLeadingTrailingWhitespace` | `false` | Preserve leading/trailing whitespace in text nodes.                                                        |
-| `smartXmlDiff.normalizeWhitespaceInTextNodes`    | `true`  | Collapse multiple spaces/tabs/newlines in text nodes to a single space.                                    |
-| `smartXmlDiff.indentation`                       | `2`     | Number of spaces to use for indentation in the normalized XML. Defaults to 2 spaces if not set or invalid. |
+| Setting                                          | Default | Description                                                                                                  |
+| ------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `smartXmlDiff.preserveLeadingTrailingWhitespace` | `false` | Preserve leading/trailing whitespace in text nodes and attribute values.                                     |
+| `smartXmlDiff.normalizeWhitespaceInTextNodes`    | `true`  | Collapse multiple spaces/tabs/newlines in text nodes and attribute values to a single space.                 |
+| `smartXmlDiff.indentation`                       | `2`     | Number of spaces (0-16) to use for indentation in the normalized XML. Values outside this range are clamped. |
+
+With `preserveLeadingTrailingWhitespace` off (the default), whitespace between elements never shows up as a difference: the normalized XML is always re-indented.
 
 ### Example Configurations
 
 ```json
 {
-  "smartXmlDiff.ignoreWhitespace": true,
   "smartXmlDiff.preserveLeadingTrailingWhitespace": false,
   "smartXmlDiff.normalizeWhitespaceInTextNodes": true,
   "smartXmlDiff.indentation": 2
@@ -198,3 +199,7 @@ Contributions are welcome! Just send a pull request via GitHub.
 ## License
 
 MIT License.
+
+## Support
+
+Found a bug or have a feature request? [Open an issue on GitHub](https://github.com/ai-autocoder/vscode-smart-xml-diff/issues).
