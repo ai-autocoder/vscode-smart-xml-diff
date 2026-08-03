@@ -10,6 +10,17 @@ import * as path from 'path';
 const SMART_XML_DIFF_SCHEME = 'smartXmlDiff';
 let diffCounter = 0; // To ensure unique URIs for each diff operation
 
+/**
+ * Spaces per indentation level for the `smartXmlDiff.indentation` setting: rounded down and
+ * clamped to 0-16, or 2 when it is not a number.
+ */
+export function indentationWidth(setting: unknown): number {
+  if (typeof setting !== 'number' || Number.isNaN(setting)) {
+    return 2;
+  }
+  return Math.min(16, Math.max(0, Math.floor(setting)));
+}
+
 // TextDocumentContentProvider for our custom URI scheme
 class XmlDiffContentProvider implements vscode.TextDocumentContentProvider {
   private contentMap = new Map<string, string>();
@@ -110,14 +121,10 @@ export class XmlDiffHandler implements vscode.Disposable {
       throw new Error('File exceeds 10MB size limit.');
     }
 
-    const config = vscode.workspace.getConfiguration('smartXmlDiff');
-    const userIndentationSpaces = config.get<number>('indentation');
+    // Scoped to the document so that folder-level values of resource-scoped settings apply.
+    const config = vscode.workspace.getConfiguration('smartXmlDiff', editor.document.uri);
 
     const currentNormalizationOptions: Partial<XmlNormalizationOptions> = {
-      ignoreInsignificantWhitespace: config.get<boolean>(
-        'ignoreWhitespace',
-        defaultXmlNormalizationOptions.ignoreInsignificantWhitespace,
-      ),
       preserveLeadingTrailingWhitespaceInText: config.get<boolean>(
         'preserveLeadingTrailingWhitespace',
         defaultXmlNormalizationOptions.preserveLeadingTrailingWhitespaceInText,
@@ -127,13 +134,8 @@ export class XmlDiffHandler implements vscode.Disposable {
         defaultXmlNormalizationOptions.normalizeWhitespaceInTextNodes,
       ),
       prettyPrintOutput: true, // Ensure diffs are pretty-printed
+      indentationString: ' '.repeat(indentationWidth(config.get('indentation'))),
     };
-
-    if (userIndentationSpaces !== undefined) {
-      currentNormalizationOptions.indentationString = ' '.repeat(
-        Math.max(0, userIndentationSpaces),
-      );
-    }
 
     const xmlService = new XmlProcessingService(currentNormalizationOptions);
 

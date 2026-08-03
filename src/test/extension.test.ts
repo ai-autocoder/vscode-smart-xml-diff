@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { XmlProcessingService } from '../services/xmlProcessingService';
-import { XmlDiffHandler } from '../extension';
+import { XmlDiffHandler, indentationWidth } from '../extension';
 
 // Mock VS Code API
 const mockShowErrorMessage = async (message: string): Promise<string | undefined> => undefined;
@@ -160,6 +160,23 @@ describe('Extension Tests', () => {
       assert.doesNotThrow(() => {
         handler.dispose();
       });
+    });
+  });
+
+  describe('indentationWidth', () => {
+    it('uses the setting when it is an integer from 0 to 16', () => {
+      assert.deepStrictEqual([0, 2, 4, 16].map(indentationWidth), [0, 2, 4, 16]);
+    });
+
+    it('clamps out-of-range values and rounds fractions down', () => {
+      assert.deepStrictEqual(
+        [-1, 17, 1e9, Infinity, 2.7].map(indentationWidth),
+        [0, 16, 16, 16, 2],
+      );
+    });
+
+    it('falls back to 2 when the setting is not a number', () => {
+      assert.deepStrictEqual([undefined, null, '4', NaN].map(indentationWidth), [2, 2, 2, 2]);
     });
   });
 
