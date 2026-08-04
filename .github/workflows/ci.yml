@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # pretest runs compile-tests, compile (check-types + lint + esbuild) and lint.
+      # The tests run inside a downloaded VS Code instance, which needs a display.
+      - run: xvfb-run -a npm test
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      # No npm cache here: audit reads package-lock.json only, and saving an empty
+      # cache under the shared key would stop the test job from saving its own.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # fast-xml-parser v4 has open advisories that need options this extension doesn't
+      # use (entity processing, builder preserveOrder), so report them as a warning.
+      # Drop the `|| echo` to make this blocking once the dependency is on v5.
+      - run: >-
+          npm audit --omit=dev ||
+          echo "::warning title=npm audit::Production dependencies have known advisories (see the log above)"
