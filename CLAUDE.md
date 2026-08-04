@@ -14,6 +14,7 @@ npm test             # pretest (compile-tests + compile + lint), then Mocha in a
 ```
 
 - Tests run inside a downloaded VS Code instance via `@vscode/test-electron` (`src/test/runTest.ts` → `src/test/index.ts`), so the first run needs network access and a display. Compiled tests land in `out/` (gitignored, like `dist/`).
+- CI (`.github/workflows/ci.yml`) runs `npm ci` and `xvfb-run -a npm test` on Ubuntu for pushes to `main` and pull requests, plus an `npm audit --omit=dev` job that only emits a warning until fast-xml-parser is upgraded to v5 (v4 has open advisories).
 - Press F5 in VS Code to launch an Extension Development Host for manual testing.
 - Code style is enforced by Prettier (`.prettierrc`: single quotes, semicolons, trailing commas, 100 cols) and ESLint. Run `npm run lint` before finishing a change.
 
