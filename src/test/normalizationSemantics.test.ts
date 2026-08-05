@@ -89,9 +89,11 @@ describe('Normalization semantics (exact output)', () => {
         normalize('<r><c><![CDATA[x => a < b &nbsp;]]></c><!-- a -> b &copy; --></r>'),
         '<r>\n  <c>x =&gt; a &lt; b &amp;nbsp;</c>\n</r>',
       );
-      // Only acceptance is asserted: processing instructions and the DOCTYPE are not yet
-      // reproduced faithfully in the output.
-      assert.doesNotThrow(() => normalize('<r><?php echo "&nbsp;"; ?><?pi a="&copy;"?></r>'));
+      assert.strictEqual(
+        normalize('<r><?php echo "&nbsp;"; ?><?pi a="&copy;"?></r>'),
+        '<r>\n  <?php echo "&nbsp;";?>\n  <?pi a="&copy;"?>\n</r>',
+      );
+      // Only acceptance is asserted: the DOCTYPE is not yet reproduced in the output.
       assert.doesNotThrow(() =>
         normalize("<!DOCTYPE r [ <!-- it's a note --> ]><r><![CDATA[&nbsp;]]>don't</r>"),
       );
@@ -168,6 +170,139 @@ describe('Normalization semantics (exact output)', () => {
     it('shows numerically equal but differently written values as differences', () => {
       assert.notStrictEqual(normalize('<a>1.10</a>'), normalize('<a>1.1</a>'));
       assert.notStrictEqual(normalize('<a v="007"/>'), normalize('<a v="7"/>'));
+    });
+  });
+
+  describe('mixed content (text next to elements) keeps its order', () => {
+    it('keeps text in place and the spaces between words and elements', () => {
+      assert.strictEqual(
+        normalize('<r><p>Hello <b>big</b> world</p></r>'),
+        '<r>\n  <p>Hello <b>big</b> world</p>\n</r>',
+      );
+      assert.strictEqual(
+        normalize('<root>text1<b>2</b>text2<a>1</a></root>'),
+        '<root>text1<b>2</b>text2<a>1</a></root>',
+      );
+    });
+
+    it('shows text moved around an element as a difference', () => {
+      assert.notStrictEqual(
+        normalize('<p>Hello world <b>big</b></p>'),
+        normalize('<p><b>big</b>Hello world</p>'),
+      );
+    });
+
+    it('collapses whitespace, trims only the ends, and still sorts element-only descendants', () => {
+      assert.strictEqual(
+        normalize('<div>\n  Text before\n  <span><z/><y>1</y></span>\n  Text after\n</div>'),
+        '<div>Text before <span><y>1</y><z></z></span> Text after</div>',
+      );
+      assert.strictEqual(
+        normalize('<p>\n  a  <b>x</b>\n  c\n</p>', { normalizeWhitespaceInTextNodes: false }),
+        '<p>a  <b>x</b>\n  c</p>',
+      );
+    });
+
+    it('keeps the whitespace at the ends when preserving leading/trailing whitespace', () => {
+      assert.strictEqual(
+        normalize('<p> x <b> y </b> z </p>', { preserveLeadingTrailingWhitespaceInText: true }),
+        '<p> x <b> y </b> z </p>',
+      );
+    });
+
+    it('treats CDATA as text and keeps processing instructions in place', () => {
+      assert.strictEqual(normalize('<p><![CDATA[x]]><b/></p>'), '<p>x<b></b></p>');
+      assert.strictEqual(normalize('<r>text<?pi x?><a/></r>'), '<r>text<?pi x?><a></a></r>');
+    });
+
+    it('treats a no-break space between elements as text, not formatting', () => {
+      const options = { normalizeWhitespaceInTextNodes: false };
+      assert.strictEqual(
+        normalize('<p><b>x</b>\u00a0<a>y</a></p>', options),
+        '<p><b>x</b>\u00a0<a>y</a></p>',
+      );
+      assert.notStrictEqual(
+        normalize('<p><b>x</b>\u00a0<a>y</a></p>'),
+        normalize('<p><a>y</a>\u00a0<b>x</b></p>'),
+      );
+    });
+
+    it('keeps the space between elements when not pretty-printing', () => {
+      assert.strictEqual(
+        normalize('<p> a <b>x</b> <i>y</i> </p>', { prettyPrintOutput: false }),
+        '<p>a <b>x</b> <i>y</i></p>',
+      );
+    });
+  });
+
+  describe('element content', () => {
+    it('drops the whitespace between elements, also when preserving leading/trailing whitespace', () => {
+      const options = { preserveLeadingTrailingWhitespaceInText: true };
+      assert.strictEqual(
+        normalize('<root>\n  <a> x </a>\n  <b>1</b>\n</root>', options),
+        '<root>\n  <a> x </a>\n  <b>1</b>\n</root>',
+      );
+      assert.strictEqual(
+        normalize('<root>\n  <a>1</a>\n</root>', {
+          ...options,
+          normalizeWhitespaceInTextNodes: false,
+        }),
+        normalize('<root><a>1</a></root>', options),
+      );
+    });
+
+    it('sorts names by code unit, independent of locale and of the input order', () => {
+      assert.strictEqual(
+        normalize('<r><b/><B/><a/></r>'),
+        '<r>\n  <B></B>\n  <a></a>\n  <b></b>\n</r>',
+      );
+      // `cafe` with an acute accent, written precomposed (NFC) and decomposed (NFD) are different names.
+      const nfc = '<caf\u00e9>1</caf\u00e9>';
+      const nfd = '<cafe\u0301>2</cafe\u0301>';
+      const expected = '<r>\n  <cafe\u0301>2</cafe\u0301>\n  <caf\u00e9>1</caf\u00e9>\n</r>';
+      assert.strictEqual(normalize(`<r>${nfc}${nfd}</r>`), expected);
+      assert.strictEqual(normalize(`<r>${nfd}${nfc}</r>`), expected);
+    });
+
+    it('handles deep nesting', () => {
+      const depth = 3000;
+      const lines = normalize('<a>'.repeat(depth) + 'x' + '</a>'.repeat(depth)).split('\n');
+      assert.strictEqual(lines.length, 2 * depth - 1);
+      assert.strictEqual(lines[depth - 1], `${'  '.repeat(depth - 1)}<a>x</a>`);
+      assert.strictEqual(lines[lines.length - 1], '</a>');
+    });
+  });
+
+  describe('constructs other than elements and attributes', () => {
+    it('keeps processing instructions and the order of the XML declaration', () => {
+      assert.strictEqual(
+        normalize(
+          `<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/xsl" href='a"b.xsl'?><r><?target data?><item/></r>`,
+        ),
+        `<?xml version="1.0" encoding="UTF-8"?>\n<?xml-stylesheet type="text/xsl" href='a"b.xsl'?>\n<r>\n  <?target data?>\n  <item></item>\n</r>`,
+      );
+      assert.notStrictEqual(normalize('<r><?target a?></r>'), normalize('<r><?target b?></r>'));
+    });
+
+    it('keeps the top level in document order', () => {
+      assert.strictEqual(
+        normalize('<?xml version="1.0"?><?a b?><r/>'),
+        '<?xml version="1.0"?>\n<?a b?>\n<r></r>',
+      );
+    });
+
+    it('keeps __proto__ as an element name', () => {
+      assert.strictEqual(
+        normalize('<r><__proto__ __proto__="x">t</__proto__></r>'),
+        '<r>\n  <__proto__ __proto__="x">t</__proto__>\n</r>',
+      );
+    });
+
+    it('rejects attributes without a value', () => {
+      assert.throws(
+        () => normalize('<a disabled/>'),
+        /Malformed XML \(validator\): boolean attribute 'disabled' is not allowed/,
+      );
     });
   });
 

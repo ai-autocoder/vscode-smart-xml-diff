@@ -101,8 +101,8 @@ Smart XML Diff enhances Visual Studio Code by providing a powerful XML compariso
 
 - **Context Menu Integration:** In XML files, easily compare selected XML text (or the whole document) with clipboard content via a right-click context menu action.
 - **Smart Diff Algorithm:**
-  - **Sorts Sibling Nodes (by distinct tag name):** Automatically sorts sibling elements with _different_ tag names alphabetically under their common parent. The relative order of sibling elements that share the _same_ tag name (e.g., a list of `<item>` elements) is preserved from the input. This helps ignore insignificant order differences between distinct types of child elements.
-  - **Normalizes Whitespace:** Standardizes indentation, and trims and collapses whitespace in text content and attribute values, according to configuration.
+  - **Sorts Sibling Nodes (by distinct tag name):** Automatically sorts sibling elements with _different_ tag names alphabetically under their common parent. The relative order of sibling elements that share the _same_ tag name (e.g., a list of `<item>` elements) is preserved from the input. This helps ignore insignificant order differences between distinct types of child elements. Elements that sit next to text (mixed content, such as `<p>Hello <b>big</b> world</p>`) are never reordered.
+  - **Normalizes Whitespace:** Standardizes indentation, and trims and collapses whitespace in text content and attribute values, according to configuration. Mixed content is kept on one line, with the spaces between words and elements.
   - **Sorts Attributes:** Sorts element attributes alphabetically by name, so attribute order never shows up as a difference.
   - **Ignores Comments:** XML comments are removed before comparing.
 - **VS Code Diff View:** Leverages VS Code's native diff interface for a familiar and powerful comparison experience.
@@ -158,10 +158,11 @@ This extension is **most effective** and **intended for use** when comparing XML
 
 ### Best Practices
 
-- **Understand Sorting Behavior:** Be aware that sibling elements with _different_ tag names are sorted alphabetically. The relative order of sibling elements with the _same_ tag name is preserved. This is key to interpreting the diff correctly.
+- **Understand Sorting Behavior:** Be aware that sibling elements with _different_ tag names are sorted alphabetically, by character code (so `Zebra` comes before `apple`). The relative order of sibling elements with the _same_ tag name is preserved, and so is the order of elements in mixed content. This is key to interpreting the diff correctly.
 - **Select Precisely:** For focused comparisons on parts of a large document, select only the relevant XML block. This can also improve performance.
-- **Valid XML:** Ensure both your selection/document and clipboard content are well-formed XML with a single root element to avoid parsing errors. Selecting several sibling elements without their common parent isn't supported and is usually reported as malformed XML.
+- **Valid XML:** Ensure both your selection/document and clipboard content are well-formed XML with a single root element to avoid parsing errors. Selecting several sibling elements without their common parent isn't supported and is usually reported as malformed XML, and so are attributes without a value (`<a disabled/>`).
 - **Entities:** In text and attribute values, only the predefined entities (`&lt;` `&gt;` `&amp;` `&apos;` `&quot;`) and numeric character references (such as `&#160;`) are supported. Others, such as HTML's `&nbsp;`, aren't supported and are generally reported as errors. Inside CDATA sections and comments, any text is fine.
+- **Processing instructions and DOCTYPE:** Processing instructions such as `<?xml-stylesheet ...?>` are kept. Their content is read as `name="value"` pairs, so other content (such as code in `<?php ... ?>`) may be shown with its spacing or `=` signs changed. The DOCTYPE isn't shown in the normalized XML, so changes to it don't show up as differences.
 - **Large Files:** The document in the editor must be smaller than 10MB. Large inputs can take a few seconds to normalize, and no progress indicator is shown.
 
 ---
@@ -178,7 +179,7 @@ All settings can be found in VS Code's settings under `Smart XML Diff`:
 | `smartXmlDiff.normalizeWhitespaceInTextNodes`    | `true`  | Collapse multiple spaces/tabs/newlines in text nodes and attribute values to a single space.                 |
 | `smartXmlDiff.indentation`                       | `2`     | Number of spaces (0-16) to use for indentation in the normalized XML. Values outside this range are clamped. |
 
-With `preserveLeadingTrailingWhitespace` off (the default), whitespace between elements never shows up as a difference: the normalized XML is always re-indented.
+Whitespace between elements that contain no other text never shows up as a difference, whatever these settings: the normalized XML is always re-indented. In mixed content (text next to elements), the whitespace between words and elements is kept, and collapsed if `normalizeWhitespaceInTextNodes` is on.
 
 ### Example Configurations
 

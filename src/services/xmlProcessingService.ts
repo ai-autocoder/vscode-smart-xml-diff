@@ -1,12 +1,10 @@
-import { XMLParser, XMLBuilder, XMLValidator } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
 export interface XmlNormalizationOptions {
-  /** Ignore/collapse insignificant whitespace between element tags.
-   * If `prettyPrintOutput` is true, the builder handles spacing.
-   * If `prettyPrintOutput` is false, this controls if `>\s+<` becomes `><`.
+  /**
+   * Preserve leading/trailing whitespace in text and attribute values. Whitespace-only text
+   * between the children of an element without other text is formatting and always dropped.
    */
-  ignoreInsignificantWhitespace: boolean;
-  /** Preserve leading/trailing whitespace in text nodes and attribute values. */
   preserveLeadingTrailingWhitespaceInText: boolean;
   /** Collapse multiple spaces/tabs/newlines in text nodes and attribute values to a single space. */
   normalizeWhitespaceInTextNodes: boolean;
@@ -17,7 +15,6 @@ export interface XmlNormalizationOptions {
 }
 
 export const defaultXmlNormalizationOptions: XmlNormalizationOptions = {
-  ignoreInsignificantWhitespace: true,
   preserveLeadingTrailingWhitespaceInText: false,
   normalizeWhitespaceInTextNodes: true,
   prettyPrintOutput: true, // Default to pretty-printed output for diffs
@@ -30,6 +27,94 @@ export const defaultXmlNormalizationOptions: XmlNormalizationOptions = {
  */
 const CDATA_KEY = '#cdata section';
 const PREDEFINED_ENTITIES = new Set(['lt', 'gt', 'amp', 'apos', 'quot']);
+
+// Keys of the parser's `preserveOrder: true` output. Each node is an object with one key naming
+// it (TEXT_KEY, `?target` for a processing instruction, or the element name) whose value is the
+// text or the child nodes, plus ATTRIBUTES_KEY for attributes (named with ATTRIBUTE_PREFIX).
+const TEXT_KEY = '#text';
+const ATTRIBUTES_KEY = ':@';
+const ATTRIBUTE_PREFIX = '@_';
+/** Only XML whitespace: unlike `\s` and trim(), this excludes e.g. the no-break space U+00A0. */
+const XML_WHITESPACE_ONLY = /^[ \t\r\n]*$/;
+/** The parser renames `__proto__` elements to this, which is not a valid XML name. */
+const PROTO_ELEMENT_KEY = '#__proto__';
+
+type ParsedNode = Record<string, unknown>;
+
+/** An attribute value, or `true` for a name without a value (only in processing instructions). */
+type Attribute = [name: string, value: string | true];
+
+interface ElementNode {
+  kind: 'element';
+  name: string;
+  attributes: Attribute[];
+  children: XmlNode[];
+}
+
+type XmlNode =
+  | { kind: 'text'; text: string }
+  | { kind: 'pi'; target: string; attributes: Attribute[] }
+  | ElementNode;
+
+/** Orders names by UTF-16 code units: unlike localeCompare, independent of the host locale. */
+function compareNames(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function sortKey(node: XmlNode): string {
+  return node.kind === 'element' ? node.name : node.kind === 'pi' ? `?${node.target}` : '';
+}
+
+const ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&apos;',
+  '"': '&quot;',
+};
+
+function escapeXml(text: string): string {
+  return text.replace(/[&<>'"]/g, (ch) => ESCAPES[ch]);
+}
+
+function readAttributes(node: ParsedNode): Attribute[] {
+  const attributes = (node[ATTRIBUTES_KEY] ?? {}) as Record<string, string | true>;
+  return Object.entries(attributes).map(([name, value]) => [
+    name.slice(ATTRIBUTE_PREFIX.length),
+    value,
+  ]);
+}
+
+/** Converts the parser's output into XmlNodes, joining adjacent text and CDATA into one node. */
+function readNodes(parsed: ParsedNode[]): XmlNode[] {
+  const nodes: XmlNode[] = [];
+  for (const node of parsed) {
+    const key = Object.keys(node).find((k) => k !== ATTRIBUTES_KEY);
+    if (key === undefined) {
+      continue;
+    }
+    const last = nodes[nodes.length - 1];
+    // An element named `#text` (malformed input that XMLValidator lets through) has children.
+    const value = node[key];
+    if (key === TEXT_KEY && typeof value === 'string') {
+      if (last?.kind === 'text') {
+        last.text += value;
+      } else {
+        nodes.push({ kind: 'text', text: value });
+      }
+    } else if (key.startsWith('?')) {
+      nodes.push({ kind: 'pi', target: key.slice(1), attributes: readAttributes(node) });
+    } else {
+      nodes.push({
+        kind: 'element',
+        name: key === PROTO_ELEMENT_KEY ? '__proto__' : key,
+        attributes: readAttributes(node),
+        children: readNodes(value as ParsedNode[]),
+      });
+    }
+  }
+  return nodes;
+}
 
 /**
  * Returns the error for the first entity reference in `text` other than the five predefined ones
@@ -51,48 +136,39 @@ function findUnsupportedEntityReference(text: string): string | undefined {
 export class XmlProcessingService {
   private readonly parser: XMLParser;
   private readonly entityCheckParser: XMLParser;
-  private readonly builder: XMLBuilder;
   private readonly options: XmlNormalizationOptions;
 
   constructor(options?: Partial<XmlNormalizationOptions>) {
     this.options = { ...defaultXmlNormalizationOptions, ...options };
 
     const parserOptions = {
+      // Elements cannot have attributes without a value (XMLValidator rejects them); this lets
+      // the parser read the content of processing instructions such as `<?target data?>`.
       allowBooleanAttributes: true,
       ignoreAttributes: false,
       // Keep text and attribute values exactly as written: coercing them to numbers would
       // make e.g. `1.10` equal to `1.1` and rewrite `007` as `7`.
       parseTagValue: false,
       parseAttributeValue: false,
-      preserveOrder: false,
-      trimValues: !this.options.preserveLeadingTrailingWhitespaceInText,
-      unpairedTags: [],
-      suppressBooleanAttributes: false,
-      suppressEmptyNode: false, // Parser option, influences how empty tags might be represented initially
+      // Keep the children of each element in document order, with text in between, so that
+      // mixed content keeps its order and sorting is done (or not) by normalizeContent.
+      preserveOrder: true,
+      // Whitespace is handled by normalizeContent: trimming every text node would glue the
+      // words of mixed content such as `<p>Hello <b>big</b> world</p>` together.
+      trimValues: false,
       processEntities: false,
       htmlEntities: false,
       ignoreComments: true, // Comments are typically ignored for semantic diff
     };
 
-    const builderOptions = {
-      // Inherit relevant options from parser for consistency where applicable
-      // but override formatting and entity processing for builder's role.
-      allowBooleanAttributes: parserOptions.allowBooleanAttributes,
-      ignoreAttributes: parserOptions.ignoreAttributes, // Must be false to build attributes
-      suppressBooleanAttributes: parserOptions.suppressBooleanAttributes,
-      suppressEmptyNode: false, // Output <tag></tag> for consistency, not <tag/>
-
-      format: this.options.prettyPrintOutput,
-      indentBy: this.options.prettyPrintOutput ? this.options.indentationString : '',
-
-      processEntities: true, // Builder should always encode entities (e.g. '&' to '&') in text/attribute values
-      // preserveOrder: parserOptions.preserveOrder, // Not directly applicable/needed for builder in this way
-    };
-
     this.parser = new XMLParser(parserOptions);
-    // Reads text and attribute values exactly like `parser`, but keeps CDATA content apart.
-    this.entityCheckParser = new XMLParser({ ...parserOptions, cdataPropName: CDATA_KEY });
-    this.builder = new XMLBuilder(builderOptions);
+    // Reads text and attribute values exactly like `parser`, but keeps CDATA content apart, in
+    // the grouped layout that assertSupportedEntityReferences walks.
+    this.entityCheckParser = new XMLParser({
+      ...parserOptions,
+      preserveOrder: false,
+      cdataPropName: CDATA_KEY,
+    });
   }
 
   /** Checks that the input is a non-empty string that looks like XML, and returns it trimmed. */
@@ -146,63 +222,135 @@ export class XmlProcessingService {
     }
   }
 
-  private normalizeTextContent(node: any): any {
-    if (typeof node === 'string') {
-      let processedNode = node;
-      // `trimValues` in parser handles leading/trailing based on `preserveLeadingTrailingWhitespaceInText`.
-      // This step focuses on internal whitespace normalization.
-      if (this.options.normalizeWhitespaceInTextNodes) {
-        processedNode = processedNode.replace(/\s+/g, ' ');
-        // If after collapsing, the node is just a single space and wasn't originally,
-        // and we are trimming, it should become empty.
-        // However, `trimValues` in parser handles this better.
-        // If `preserveLeadingTrailingWhitespaceInText` is false, `trimValues` is true.
-        // If `preserveLeadingTrailingWhitespaceInText` is true, `trimValues` is false.
-        // So, if node was "  " and `trimValues` is true, it's already empty before this.
-        // If node was "  " and `trimValues` is false, it's "  ", then `\s+` -> " ", then `trim()` would make it empty.
-        // But we should only trim if `!preserveLeadingTrailingWhitespaceInText`.
-        // The parser's `trimValues` is the main leading/trailing control.
-        // This `replace` is for *internal* collapsing. The subsequent `trim()` here is a safeguard.
-        if (!this.options.preserveLeadingTrailingWhitespaceInText) {
-          processedNode = processedNode.trim();
-        }
-      }
-      return processedNode;
+  /** Collapses internal whitespace and trims, as configured. */
+  private normalizeValue(value: string): string {
+    let normalized = this.options.normalizeWhitespaceInTextNodes
+      ? value.replace(/\s+/g, ' ')
+      : value;
+    if (!this.options.preserveLeadingTrailingWhitespaceInText) {
+      normalized = normalized.trim();
     }
-
-    if (Array.isArray(node)) {
-      return node.map((item) => this.normalizeTextContent(item));
-    }
-
-    if (node && typeof node === 'object') {
-      const normalized: any = {};
-      for (const key in node) {
-        if (Object.prototype.hasOwnProperty.call(node, key)) {
-          // For attributes (prefixed with '@_' by default by fast-xml-parser if not ignoring attributes)
-          // their values should also be normalized if they are strings.
-          normalized[key] = this.normalizeTextContent(node[key]);
-        }
-      }
-      return normalized;
-    }
-    return node;
+    return normalized;
   }
 
-  private sortNodes(node: any): any {
-    if (Array.isArray(node)) {
-      return node.map((item) => this.sortNodes(item));
+  /**
+   * Normalizes an element's attributes and content in place. Each pass over the tree recurses
+   * once per level, without callbacks in between, so that deep nesting fits on the stack.
+   */
+  private normalizeElement(element: ElementNode): void {
+    for (const attribute of element.attributes) {
+      if (typeof attribute[1] === 'string') {
+        attribute[1] = this.normalizeValue(attribute[1]);
+      }
+    }
+    element.attributes.sort(([a], [b]) => compareNames(a, b));
+    for (const child of element.children) {
+      if (child.kind === 'element') {
+        this.normalizeElement(child);
+      }
+    }
+    element.children = this.normalizeContent(element.children);
+  }
+
+  /**
+   * Normalizes the whitespace and order of an element's children (whose own content is already
+   * normalized). Processing instructions are not attributes or text, so their content is kept as
+   * the parser read it.
+   */
+  private normalizeContent(children: XmlNode[]): XmlNode[] {
+    const markup = children.filter((child) => child.kind !== 'text');
+    const text = children.filter((child) => child.kind === 'text');
+
+    if (markup.length === 0) {
+      // Text only (readNodes joined it into at most one node).
+      const value = this.normalizeValue(text.map((child) => child.text).join(''));
+      return value === '' ? [] : [{ kind: 'text', text: value }];
     }
 
-    if (node && typeof node === 'object') {
-      const sorted: any = {};
-      Object.keys(node)
-        .sort((a, b) => a.localeCompare(b))
-        .forEach((key) => {
-          sorted[key] = this.sortNodes(node[key]);
-        });
-      return sorted;
+    if (text.every((child) => XML_WHITESPACE_ONLY.test(child.text))) {
+      // Element content: the whitespace between children is formatting, and their order is
+      // not significant except among same-name siblings (Array.prototype.sort is stable).
+      return markup.sort((a, b) => compareNames(sortKey(a), sortKey(b)));
     }
-    return node;
+
+    // Mixed content: the text and the elements around it are read in order, so keep it, and
+    // keep the whitespace between words and elements (trimming only the ends of the content).
+    if (this.options.normalizeWhitespaceInTextNodes) {
+      for (const child of text) {
+        child.text = child.text.replace(/\s+/g, ' ');
+      }
+    }
+    if (!this.options.preserveLeadingTrailingWhitespaceInText) {
+      const first = children[0];
+      const last = children[children.length - 1];
+      if (first.kind === 'text') {
+        first.text = first.text.replace(/^[ \t\r\n]+/, '');
+      }
+      if (last.kind === 'text') {
+        last.text = last.text.replace(/[ \t\r\n]+$/, '');
+      }
+    }
+    return children.filter((child) => child.kind !== 'text' || child.text !== '');
+  }
+
+  private formatAttributes(attributes: Attribute[], escape: boolean): string {
+    let formatted = '';
+    for (const [name, value] of attributes) {
+      if (value === true) {
+        formatted += ` ${name}`;
+      } else if (escape) {
+        formatted += ` ${name}="${escapeXml(value)}"`;
+      } else {
+        // Processing instruction content is not parsed for references, so it is not escaped.
+        formatted += value.includes('"') ? ` ${name}='${value}'` : ` ${name}="${value}"`;
+      }
+    }
+    return formatted;
+  }
+
+  /** Serializes a node on one line, for mixed content (where whitespace is significant). */
+  private serializeInline(node: XmlNode): string {
+    if (node.kind === 'text') {
+      return escapeXml(node.text);
+    }
+    if (node.kind === 'pi') {
+      return `<?${node.target}${this.formatAttributes(node.attributes, false)}?>`;
+    }
+    // Always `<tag></tag>`, never `<tag/>`, so that both forms of an empty element match.
+    let serialized = `<${node.name}${this.formatAttributes(node.attributes, true)}>`;
+    for (const child of node.children) {
+      serialized += this.serializeInline(child);
+    }
+    return `${serialized}</${node.name}>`;
+  }
+
+  /** Serializes a node one child element per line, unless its content is text or mixed. */
+  private serializePretty(node: XmlNode, depth: number, lines: string[]): void {
+    const indent = this.options.indentationString.repeat(depth);
+    if (
+      node.kind !== 'element' ||
+      node.children.length === 0 ||
+      node.children.some((child) => child.kind === 'text')
+    ) {
+      lines.push(indent + this.serializeInline(node));
+      return;
+    }
+    lines.push(`${indent}<${node.name}${this.formatAttributes(node.attributes, true)}>`);
+    for (const child of node.children) {
+      this.serializePretty(child, depth + 1, lines);
+    }
+    lines.push(`${indent}</${node.name}>`);
+  }
+
+  private serialize(nodes: XmlNode[]): string {
+    if (!this.options.prettyPrintOutput) {
+      return nodes.map((node) => this.serializeInline(node)).join('');
+    }
+    const lines: string[] = [];
+    for (const node of nodes) {
+      this.serializePretty(node, 0, lines);
+    }
+    return lines.join('\n');
   }
 
   parseNormalizeAll(xml: string): string {
@@ -212,7 +360,7 @@ export class XmlProcessingService {
     const trimmedXml = this.validateXmlBasics(xml);
 
     const validationResult = XMLValidator.validate(trimmedXml, {
-      allowBooleanAttributes: true,
+      allowBooleanAttributes: false,
     });
 
     if (validationResult !== true) {
@@ -230,41 +378,23 @@ export class XmlProcessingService {
 
     try {
       this.validateEntityReferences(trimmedXml);
-      let parsed = this.parser.parse(trimmedXml);
+      const parsed: unknown = this.parser.parse(trimmedXml);
 
-      if (!parsed || typeof parsed !== 'object' || Object.keys(parsed).length === 0) {
-        if (
-          Object.keys(parsed).length === 0 &&
-          trimmedXml.length > 0 &&
-          !trimmedXml.match(/^<\?xml.*\?>$/) &&
-          !trimmedXml.match(/^<!--.*-->$/)
-        ) {
-          throw new Error(
-            'XML parsing failed - result is empty despite non-empty input that is not just a declaration or comment.',
-          );
+      // XMLValidator rejects documents without a root element, so this is not expected.
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        throw new Error('XML parsing failed - result is empty.');
+      }
+
+      // The document's top level is kept in order: the XML declaration has to stay first, and
+      // there is only one root element. Text there is whitespace between the prolog items.
+      const document = readNodes(parsed).filter((node) => node.kind !== 'text');
+      for (const node of document) {
+        if (node.kind === 'element') {
+          this.normalizeElement(node);
         }
       }
 
-      if (
-        this.options.normalizeWhitespaceInTextNodes ||
-        !this.options.preserveLeadingTrailingWhitespaceInText
-      ) {
-        parsed = this.normalizeTextContent(parsed);
-      }
-
-      const sortedAndNormalized = this.sortNodes(parsed);
-
-      let xmlOut = this.builder.build(sortedAndNormalized);
-
-      // If pretty printing is disabled and we want to ignore insignificant whitespace,
-      // perform an aggressive collapse of space between tags.
-      // If pretty printing is enabled, the builder handles formatting.
-      if (!this.options.prettyPrintOutput && this.options.ignoreInsignificantWhitespace) {
-        xmlOut = xmlOut.replace(/>\s+</g, '><');
-      }
-
-      // Always trim the final output string (removes leading/trailing newlines from pretty print or any extra space).
-      return xmlOut.trim();
+      return this.serialize(document);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       if (errorMessage.toLowerCase().startsWith('malformed xml')) {

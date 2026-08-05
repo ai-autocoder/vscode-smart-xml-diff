@@ -32,17 +32,12 @@ describe('XmlProcessingService', () => {
       assertEquivalent(xmlA, xmlB);
     });
 
-    it('should normalize elements in mixed content', () => {
-      // In mixed content, element order is normalized but text nodes are preserved
+    it('should keep the order of elements in mixed content', () => {
+      // The text between elements is read in order, so reordering them is a real change.
       const xmlA = '<root>text1<a>1</a>text2<b>2</b></root>';
       const xmlB = '<root>text1<b>2</b>text2<a>1</a></root>';
-      // Due to the way the parser handles mixed content, elements get sorted
-      // but the text nodes may be combined or reordered as well
-      const resultA = service.parseNormalizeAll(xmlA);
-      const resultB = service.parseNormalizeAll(xmlB);
-      // Verify both results are valid XML
-      assert.ok(resultA.includes('<root>'));
-      assert.ok(resultB.includes('<root>'));
+      assert.strictEqual(service.parseNormalizeAll(xmlA), xmlA);
+      assert.strictEqual(service.parseNormalizeAll(xmlB), xmlB);
     });
 
     it('should treat attribute order as irrelevant', () => {
@@ -333,10 +328,7 @@ describe('XmlProcessingService', () => {
 
     it('should preserve text node order in mixed content', () => {
       const input = '<p>Start <b>middle</b> end</p>';
-      const result = service.parseNormalizeAll(input);
-      // Text order should be meaningful
-      assert.ok(result.includes('Start'));
-      assert.ok(result.includes('end'));
+      assert.strictEqual(service.parseNormalizeAll(input), input);
     });
   });
 
