@@ -9,6 +9,12 @@
 - Removed the `smartXmlDiff.ignoreWhitespace` setting, which had no effect on the diff; a value left in your settings is ignored and can be deleted
 - Fix: `smartXmlDiff.indentation` is limited to 0-16 spaces; larger values are clamped to 16 instead of producing very wide indentation or an error, and folder-level values are now honoured
 - Docs: corrected the README (command name, where the command appears, attribute sorting, comments, supported entities, limits)
+- Fix: mixed content such as `<p>Hello <b>big</b> world</p>` is no longer rewritten: its text stays in place, with the spaces between words and elements, and its elements are not reordered, so moving text or elements around is shown as a difference
+- Fix: whitespace between elements no longer shows up as a difference when `smartXmlDiff.preserveLeadingTrailingWhitespace` is on
+- Fix: processing instructions keep their content (`<?target data?>` was shown as `<?target data="true"?>`), and the XML declaration keeps `version` first
+- Fix: elements are sorted by character code, so the order no longer depends on VS Code's display language, and differently encoded names (such as `café` in NFC and NFD) always sort the same way; names starting with an uppercase letter now come before lowercase ones
+- Fix: elements named `__proto__` are no longer shown as `#__proto__`, and attributes without a value (`<a disabled/>`, which isn't well-formed XML) are reported as malformed
+- Deeper nesting is supported before the stack runs out
 
 ## [1.0.4]
 
