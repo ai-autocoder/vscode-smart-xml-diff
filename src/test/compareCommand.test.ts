@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { EXPIRED_COMPARISON_TEXT } from '../extension';
 
 // End-to-end tests of the smartXmlDiff.compareWithClipboard command as a user triggers it:
 // real editor, real clipboard, real diff tab.
@@ -124,6 +125,48 @@ describe('Compare with Clipboard command (end to end)', function () {
     const errors = await runCommandCapturingErrors();
     assert.strictEqual(errors.length, 1);
     assert.match(errors[0], /empty or contains only whitespace/);
+  });
+
+  it('releases the normalized documents once their diff is closed', async () => {
+    await openXmlEditor('<r><a>1</a></r>');
+    await vscode.env.clipboard.writeText('<r><a>2</a></r>');
+    assert.deepStrictEqual(await runCommandCapturingErrors(), []);
+    const diff = await waitFor(activeDiffInput);
+    assert.ok(diff);
+    // Read through the documents the diff editor opened: openTextDocument() would hold them open.
+    const isOpen = (uri: vscode.Uri) =>
+      vscode.workspace.textDocuments.some((doc) => doc.uri.toString() === uri.toString());
+    const original = await waitFor(() =>
+      vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === diff.original.toString()),
+    );
+    assert.strictEqual(original?.getText(), '<r>\n  <a>1</a>\n</r>');
+
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    const closed = await waitFor(() => !isOpen(diff.original) && !isOpen(diff.modified), 10000);
+    assert.ok(closed, 'VS Code should dispose the documents of the closed diff');
+
+    // Asking for them again, as reopening the closed tab does, no longer finds their content.
+    assert.strictEqual(await textOf(diff.original), EXPIRED_COMPARISON_TEXT);
+    assert.strictEqual(await textOf(diff.modified), EXPIRED_COMPARISON_TEXT);
+  });
+
+  it('names each comparison after the session, so restored tabs never share its documents', async () => {
+    // The counter starts again after a window reload; without the session part, the first new
+    // comparison would reuse the URIs of the first restored one.
+    await openXmlEditor('<r/>');
+    await vscode.env.clipboard.writeText('<r/>');
+    assert.deepStrictEqual(await runCommandCapturingErrors(), []);
+    const diff = await waitFor(activeDiffInput);
+    assert.ok(diff);
+    const id = /^\/right\/([0-9a-z]+-\d+)\/clipboard\.xml$/.exec(diff.modified.path)?.[1];
+    assert.ok(id, `unexpected path ${diff.modified.path}`);
+    assert.ok(diff.original.path.startsWith(`/left/${id}/`), diff.original.path);
+  });
+
+  it('explains that a comparison it no longer holds has expired', async () => {
+    // As for a diff tab restored after a window reload.
+    const uri = vscode.Uri.from({ scheme: 'smartXmlDiff', path: '/left/0/restored.xml' });
+    assert.strictEqual(await textOf(uri), EXPIRED_COMPARISON_TEXT);
   });
 
   it('reports when there is no active editor', async () => {

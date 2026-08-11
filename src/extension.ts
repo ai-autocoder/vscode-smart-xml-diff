@@ -9,6 +9,16 @@ import * as path from 'path';
 
 const SMART_XML_DIFF_SCHEME = 'smartXmlDiff';
 let diffCounter = 0; // To ensure unique URIs for each diff operation
+// Part of every URI, so that the URIs of tabs restored after a window reload (when diffCounter
+// starts again from 0) never match those of a new comparison.
+const SESSION_ID = Date.now().toString(36);
+
+/**
+ * Shown for a comparison whose content is no longer held, e.g. a diff tab restored after a window
+ * reload or reopened after it was closed.
+ */
+export const EXPIRED_COMPARISON_TEXT =
+  '<!-- This comparison has expired. Run "Smart XML Diff: Compare with Clipboard" again. -->';
 
 /**
  * Spaces per indentation level for the `smartXmlDiff.indentation` setting: rounded down and
@@ -32,7 +42,7 @@ class XmlDiffContentProvider implements vscode.TextDocumentContentProvider {
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {
-    return this.contentMap.get(uri.toString()) || '';
+    return this.contentMap.get(uri.toString()) ?? EXPIRED_COMPARISON_TEXT;
   }
 
   setContent(uri: vscode.Uri, content: string): void {
@@ -91,12 +101,11 @@ export class XmlDiffHandler implements vscode.Disposable {
     baseFileName: string,
   ): Promise<void> {
     diffCounter++;
+    const diffId = `${SESSION_ID}-${diffCounter}`;
     const leftUri = vscode.Uri.parse(
-      `${SMART_XML_DIFF_SCHEME}:/left/${diffCounter}/${baseFileName}.xml`,
+      `${SMART_XML_DIFF_SCHEME}:/left/${diffId}/${baseFileName}.xml`,
     );
-    const rightUri = vscode.Uri.parse(
-      `${SMART_XML_DIFF_SCHEME}:/right/${diffCounter}/clipboard.xml`,
-    );
+    const rightUri = vscode.Uri.parse(`${SMART_XML_DIFF_SCHEME}:/right/${diffId}/clipboard.xml`);
 
     xmlDiffProvider.setContent(leftUri, normalizedA);
     xmlDiffProvider.setContent(rightUri, normalizedB);
@@ -107,7 +116,11 @@ export class XmlDiffHandler implements vscode.Disposable {
       await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, diffTitle, {
         preview: false, // Using `false` often makes it behave more like a standard editor tab, which might be desirable. Test `true` vs `false`.
       });
-    } finally {
+    } catch (e) {
+      // No tab will close these documents, so release them here.
+      xmlDiffProvider.deleteContent(leftUri);
+      xmlDiffProvider.deleteContent(rightUri);
+      throw e;
     }
   }
 
@@ -187,6 +200,16 @@ export function activate(context: vscode.ExtensionContext): void {
   // Register the TextDocumentContentProvider for our custom scheme
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(SMART_XML_DIFF_SCHEME, xmlDiffProvider),
+  );
+  // Release a normalized document once VS Code disposes it (normally when its diff tab is closed;
+  // a language-mode change also reports a close, but the open document keeps its text), so that
+  // comparisons don't accumulate in memory for the whole session.
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      if (document.uri.scheme === SMART_XML_DIFF_SCHEME) {
+        xmlDiffProvider.deleteContent(document.uri);
+      }
+    }),
   );
 
   const diffHandler = new XmlDiffHandler();
