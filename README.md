@@ -163,7 +163,7 @@ This extension is **most effective** and **intended for use** when comparing XML
 - **Valid XML:** Ensure both your selection/document and clipboard content are well-formed XML with a single root element to avoid parsing errors. Selecting several sibling elements without their common parent isn't supported and is usually reported as malformed XML, and so are attributes without a value (`<a disabled/>`).
 - **Entities:** In text and attribute values, only the predefined entities (`&lt;` `&gt;` `&amp;` `&apos;` `&quot;`) and numeric character references (such as `&#160;`) are supported. Others, such as HTML's `&nbsp;`, aren't supported and are generally reported as errors. Inside CDATA sections and comments, any text is fine.
 - **Processing instructions and DOCTYPE:** Processing instructions such as `<?xml-stylesheet ...?>` are kept. Their content is read as `name="value"` pairs, so other content (such as code in `<?php ... ?>`) may be shown with its spacing or `=` signs changed. The DOCTYPE isn't shown in the normalized XML, so changes to it don't show up as differences.
-- **Large Files:** The document in the editor must be smaller than 10MB. Large inputs can take a few seconds to normalize, and no progress indicator is shown.
+- **Large Files:** The selection (or the whole document when nothing is selected) and the clipboard content must each be smaller than 10MB, so a small selection of a larger document can still be compared. Large inputs can take a few seconds to normalize, and no progress indicator is shown.
 
 ---
 

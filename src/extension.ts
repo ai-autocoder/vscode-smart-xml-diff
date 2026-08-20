@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isFileSizeWithinLimit } from './utils/fileUtils'; // Assuming this file exists and is correct
+import { isTextWithinSizeLimit } from './utils/fileUtils';
 import {
   XmlProcessingService,
   XmlNormalizationOptions,
@@ -80,17 +80,13 @@ export class XmlDiffHandler implements vscode.Disposable {
 
   private async getClipboardContent(): Promise<string> {
     try {
-      const content = await vscode.env.clipboard.readText();
-      if (!content) {
-        throw new Error('Clipboard is empty. Please copy XML content to the clipboard.');
-      }
-      return content;
+      return await vscode.env.clipboard.readText();
     } catch (e) {
       this.outputChannel.appendLine(
         `Error accessing clipboard: ${e instanceof Error ? e.message : String(e)}`,
       );
       throw new Error(
-        'Failed to access clipboard. Please check your system clipboard permissions and ensure content is copied.',
+        'Failed to access clipboard. Please check your system clipboard permissions.',
       );
     }
   }
@@ -102,15 +98,22 @@ export class XmlDiffHandler implements vscode.Disposable {
   ): Promise<void> {
     diffCounter++;
     const diffId = `${SESSION_ID}-${diffCounter}`;
-    const leftUri = vscode.Uri.parse(
-      `${SMART_XML_DIFF_SCHEME}:/left/${diffId}/${baseFileName}.xml`,
-    );
-    const rightUri = vscode.Uri.parse(`${SMART_XML_DIFF_SCHEME}:/right/${diffId}/clipboard.xml`);
+    // Built from components, so that a '#' or '?' in the file name stays part of the path instead
+    // of starting a fragment or query. The .xml extension gives the left side the XML language.
+    const leftFileName = /\.xml$/i.test(baseFileName) ? baseFileName : `${baseFileName}.xml`;
+    const leftUri = vscode.Uri.from({
+      scheme: SMART_XML_DIFF_SCHEME,
+      path: `/left/${diffId}/${leftFileName}`,
+    });
+    const rightUri = vscode.Uri.from({
+      scheme: SMART_XML_DIFF_SCHEME,
+      path: `/right/${diffId}/clipboard.xml`,
+    });
 
     xmlDiffProvider.setContent(leftUri, normalizedA);
     xmlDiffProvider.setContent(rightUri, normalizedB);
 
-    const diffTitle = `XML Diff: ${path.basename(baseFileName)} ↔ Clipboard`;
+    const diffTitle = `XML Diff: ${baseFileName} ↔ Clipboard`;
 
     try {
       await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, diffTitle, {
@@ -128,11 +131,6 @@ export class XmlDiffHandler implements vscode.Disposable {
     this.outputChannel.clear();
 
     this.outputChannel.appendLine('Starting XML comparison with clipboard...');
-
-    if (!isFileSizeWithinLimit(editor.document)) {
-      this.outputChannel.appendLine('Error: File exceeds 10MB size limit.');
-      throw new Error('File exceeds 10MB size limit.');
-    }
 
     // Scoped to the document so that folder-level values of resource-scoped settings apply.
     const config = vscode.workspace.getConfiguration('smartXmlDiff', editor.document.uri);
@@ -161,6 +159,23 @@ export class XmlDiffHandler implements vscode.Disposable {
       this.outputChannel.appendLine('Error: Selected XML content is empty or whitespace only.');
       throw new Error('Selected XML (from editor/selection) is empty or contains only whitespace.');
     }
+    if (!isTextWithinSizeLimit(selectedXmlOriginal)) {
+      this.outputChannel.appendLine('Error: Selected XML exceeds the 10MB size limit.');
+      throw new Error('Selected XML (from editor/selection) exceeds the 10MB size limit.');
+    }
+
+    // Both inputs are checked before either is normalized, which can take a while.
+    const clipboardXmlOriginal = await this.getClipboardContent();
+    if (!clipboardXmlOriginal.trim()) {
+      this.outputChannel.appendLine('Error: Clipboard is empty or whitespace only.');
+      throw new Error(
+        'Clipboard is empty or contains only whitespace. Please copy XML content to the clipboard.',
+      );
+    }
+    if (!isTextWithinSizeLimit(clipboardXmlOriginal)) {
+      this.outputChannel.appendLine('Error: Clipboard XML exceeds the 10MB size limit.');
+      throw new Error('Clipboard XML exceeds the 10MB size limit.');
+    }
 
     let normalizedA: string;
     try {
@@ -173,7 +188,6 @@ export class XmlDiffHandler implements vscode.Disposable {
       throw new Error(errorMsg);
     }
 
-    const clipboardXmlOriginal = await this.getClipboardContent();
     let normalizedB: string;
     try {
       this.outputChannel.appendLine('Normalizing XML from clipboard...');
@@ -224,7 +238,8 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (editor.document.languageId !== 'xml') {
-        await vscode.window.showWarningMessage(
+        // Not awaited: a message without buttons only settles once the user dismisses it.
+        void vscode.window.showWarningMessage(
           'Smart XML Diff: This command is intended for XML files.',
         );
       }

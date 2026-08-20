@@ -169,6 +169,107 @@ describe('Compare with Clipboard command (end to end)', function () {
     assert.strictEqual(await textOf(uri), EXPIRED_COMPARISON_TEXT);
   });
 
+  it('compares a small selection of a document larger than 10MB', async function () {
+    this.timeout(60000);
+    const editor = await openXmlEditor('<a>1</a>\n<!--' + 'x'.repeat(11 * 1024 * 1024) + '-->');
+    editor.selection = new vscode.Selection(0, 0, 0, '<a>1</a>'.length);
+    await vscode.env.clipboard.writeText('<a>2</a>');
+
+    assert.deepStrictEqual(await runCommandCapturingErrors(), []);
+    const diff = await waitFor(activeDiffInput);
+    assert.ok(diff);
+    assert.strictEqual(await textOf(diff.original), '<a>1</a>');
+  });
+
+  it('reports a whole document of 10MB or more without opening a diff', async function () {
+    this.timeout(60000);
+    await openXmlEditor('<a>1</a>\n<!--' + 'x'.repeat(11 * 1024 * 1024) + '-->');
+    await vscode.env.clipboard.writeText('<a>2</a>');
+
+    assert.deepStrictEqual(await runCommandCapturingErrors(), [
+      'Smart XML Diff Error: Selected XML (from editor/selection) exceeds the 10MB size limit.',
+    ]);
+    assert.strictEqual(activeDiffInput(), undefined);
+  });
+
+  it('reports clipboard XML of 10MB or more without opening a diff', async function () {
+    this.timeout(60000);
+    await openXmlEditor('<r/>');
+    await vscode.env.clipboard.writeText('<r>' + 'x'.repeat(10 * 1024 * 1024) + '</r>');
+    try {
+      const errors = await runCommandCapturingErrors();
+      assert.deepStrictEqual(errors, [
+        'Smart XML Diff Error: Clipboard XML exceeds the 10MB size limit.',
+      ]);
+      assert.strictEqual(activeDiffInput(), undefined);
+    } finally {
+      await vscode.env.clipboard.writeText('');
+    }
+  });
+
+  it('opens the diff of a non-XML document without waiting for its warning to be dismissed', async () => {
+    await openXmlEditor('<r><a>1</a></r>', 'plaintext');
+    await vscode.env.clipboard.writeText('<r/>');
+    const warnings: string[] = [];
+    const original = vscode.window.showWarningMessage;
+    // Like a real notification without buttons, it settles only once the user dismisses it.
+    (vscode.window as any).showWarningMessage = (message: string) => {
+      warnings.push(message);
+      return new Promise(() => {});
+    };
+    try {
+      const errors = await Promise.race([
+        runCommandCapturingErrors(),
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 3000)),
+      ]);
+      assert.notStrictEqual(errors, 'timeout', 'the command should not wait for the warning');
+      assert.deepStrictEqual(errors, []);
+      assert.deepStrictEqual(warnings, ['Smart XML Diff: This command is intended for XML files.']);
+      const diff = await waitFor(activeDiffInput);
+      assert.ok(diff);
+      assert.strictEqual(await textOf(diff.original), '<r>\n  <a>1</a>\n</r>');
+    } finally {
+      (vscode.window as any).showWarningMessage = original;
+    }
+  });
+
+  it('reports an empty or whitespace-only clipboard as empty', async () => {
+    await openXmlEditor('<r/>');
+    for (const clipboard of ['', ' \n\t']) {
+      await vscode.env.clipboard.writeText(clipboard);
+      assert.deepStrictEqual(
+        await runCommandCapturingErrors(),
+        [
+          'Smart XML Diff Error: Clipboard is empty or contains only whitespace. Please copy XML content to the clipboard.',
+        ],
+        JSON.stringify(clipboard),
+      );
+      assert.strictEqual(activeDiffInput(), undefined);
+    }
+  });
+
+  it('keeps a file name containing # and ? in the path of the diff document', async () => {
+    const doc = await vscode.workspace.openTextDocument(
+      vscode.Uri.from({ scheme: 'untitled', path: '/weird#na?me.xml' }),
+    );
+    const editor = await vscode.window.showTextDocument(doc, { preview: false });
+    await editor.edit((edit) => edit.insert(new vscode.Position(0, 0), '<r><a>1</a></r>'));
+    await vscode.env.clipboard.writeText('<r/>');
+
+    assert.deepStrictEqual(await runCommandCapturingErrors(), []);
+    const diff = await waitFor(activeDiffInput);
+    assert.ok(diff);
+    // No second .xml extension, and nothing of the name taken as a query or fragment.
+    assert.match(diff.original.path, /^\/left\/[0-9a-z]+-\d+\/weird#na\?me\.xml$/);
+    assert.strictEqual(diff.original.query, '');
+    assert.strictEqual(diff.original.fragment, '');
+    assert.strictEqual(await textOf(diff.original), '<r>\n  <a>1</a>\n</r>');
+    const left = await vscode.workspace.openTextDocument(diff.original);
+    assert.strictEqual(left.languageId, 'xml');
+    const label = vscode.window.tabGroups.activeTabGroup.activeTab?.label;
+    assert.strictEqual(label, 'XML Diff: weird#na?me.xml ↔ Clipboard');
+  });
+
   it('reports when there is no active editor', async () => {
     const errors = await runCommandCapturingErrors();
     assert.deepStrictEqual(errors, ['Smart XML Diff: No active editor found.']);
